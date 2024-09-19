@@ -1,0 +1,8 @@
+/target
+/Cargo.lock
+/backups
+.env.local
+.VSCodeCounter
+rustium-template.tar.gz
+Secrets*.toml
+book

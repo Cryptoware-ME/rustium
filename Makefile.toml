@@ -1,0 +1,88 @@
+# crate management
+[tasks.cpreadme]
+workspace = false
+run_task = { name = ["lib-cpreadme", "book-cpreadme"] }
+
+[tasks.lib-cpreadme]
+workspace = false
+command = "cp"
+args = ["README.md", "lib/README.md"]
+
+[tasks.lib-publish]
+workspace = false
+run_task = { name = ["lib-package", "lib-publish-inner"] }
+
+[tasks.lib-package]
+workspace = false
+cwd = "./lib"
+command = "cargo"
+args = ["package"]
+
+[tasks.lib-build]
+workspace = false
+cwd = "./lib"
+command = "cargo"
+args = ["build", "-p", "rustium", "--locked", "--release"]
+
+[tasks.lib-publish-inner]
+workspace = false
+cwd = "./lib"
+command = "cargo"
+args = ["publish"]
+
+# localdb
+[tasks.devdb-start]
+workspace = false
+script_runner = "@shell"
+script = '''
+docker run -d --name rustium-template-db -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=rustiumdb postgres
+'''
+
+[tasks.devdb-stop]
+workspace = false
+script_runner = "@shell"
+script = '''
+docker stop postgres
+docker rm postgres
+'''
+
+# documentation 
+[tasks.book-run]
+workspace = false
+run_task = { name = [
+	"book-cpreadme",
+	"book-preprocessors",
+	"book-build",
+	"book-serve",
+] }
+
+[tasks.book-build-ci]
+workspace = false
+run_task = { name = ["book-cpreadme", "book-preprocessors", "book-build"] }
+
+[tasks.book-cpreadme]
+workspace = false
+command = "cp"
+args = ["README.md", "docs/src/README.md"]
+
+[tasks.book-preprocessors]
+workspace = false
+script_runner = "@shell"
+script = '''
+cargo install mdbook
+cargo install mdbook-mermaid
+cargo install mdbook-admonish
+cargo install mdbook-toc
+'''
+
+[tasks.book-build]
+workspace = false
+cwd = "./docs"
+command = "mdbook"
+args = ["build"]
+
+[tasks.book-serve]
+workspace = false
+cwd = "./docs"
+command = "mdbook"
+args = ["serve"]

@@ -1,0 +1,30 @@
+[book]
+authors = ["Jad A. Jabbour"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Rustium - A Rust application framework that values concurrency, performance, and scalability"
+
+[build]
+create-missing = true
+
+[output.html]
+default-theme = "dark"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/Cryptoware-ME/rustium"
+additional-js = ["src/assets/mermaid.min.js", "src/assets/mermaid-init.js"]
+additional-css = ["src/assets/mdbook-admonish.css"]
+
+[preprocessor]
+
+[preprocessor.toc]
+command = "mdbook-toc"
+renderer = ["html"]
+max-level = 4
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[preprocessor.admonish]
+command = "mdbook-admonish"
+assets_version = "3.0.2"

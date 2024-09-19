@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Launch & Debug Rustium Template",
+      "cargo": {
+        "args": ["build", "-p", "rustium-template"]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "attach",
+      "name": "Attach & Debug Rustium Template",
+      "program": "${workspaceFolder}/target/debug/rustium-template"
+    }
+  ]
+}
