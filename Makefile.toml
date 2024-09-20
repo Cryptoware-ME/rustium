@@ -1,3 +1,5 @@
+## cargo install cargo-make
+
 # crate management
 [tasks.cpreadme]
 workspace = false
