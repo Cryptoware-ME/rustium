@@ -6,6 +6,7 @@ pub mod logging;
 pub mod prelude;
 pub mod response;
 pub mod result;
+pub mod service;
 pub mod settings;
 
 use crate::prelude::*;

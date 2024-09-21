@@ -6,18 +6,22 @@ use axum_extra::{
 use std::{env, sync::Arc};
 
 use crate::{
-    authentication::token::{decode_auth_token, TokenUser},
+    authentication::{
+        auth_service::AuthService,
+        token::{decode_auth_token, TokenUser},
+    },
+    context::AppContext,
     error::AuthenticateError,
     prelude::*,
 };
 
 #[async_trait]
-impl<T> FromRequestParts<Arc<T>> for TokenUser {
+impl FromRequestParts<Arc<AppContext>> for TokenUser {
     type Rejection = RustiumError;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &Arc<T>,
+        state: &Arc<AppContext>,
     ) -> Result<Self, Self::Rejection> {
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
@@ -29,12 +33,14 @@ impl<T> FromRequestParts<Arc<T>> for TokenUser {
         let token_data = decode_auth_token(bearer.token(), &secret)
             .map_err(|_| AuthenticateError::InvalidToken)?;
 
-        let _user = match User::get(token_data.claims.user.id.clone(), state).await {
-            Ok(user) => user,
-            Err(_) => {
-                return Err(Error::AuthenticationError(AuthenticateError::InvalidToken));
-            }
-        };
+        let user_service = state.get_service::<AuthService>();
+
+        // let _user = match User::get(token_data.claims.user.id.clone(), state).await {
+        //     Ok(user) => user,
+        //     Err(_) => {
+        //         return Err(Error::AuthenticationError(AuthenticateError::InvalidToken));
+        //     }
+        // };
 
         Ok(token_data.claims.user)
     }
