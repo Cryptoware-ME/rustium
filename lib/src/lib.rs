@@ -1,4 +1,5 @@
 pub mod authentication;
+pub mod context;
 pub mod datastore;
 pub mod error;
 pub mod logging;

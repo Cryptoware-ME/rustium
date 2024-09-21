@@ -124,6 +124,23 @@ impl From<jsonwebtoken::errors::Error> for RustiumError {
     }
 }
 
+impl From<amqprs::error::Error> for RustiumError {
+    fn from(val: amqprs::error::Error) -> Self {
+        RustiumError::AMPQError(val)
+    }
+}
+
+impl From<RedisError> for RustiumError {
+    fn from(val: RedisError) -> Self {
+        RustiumError::RedisErr(val)
+    }
+}
+
+impl From<AuthenticateError> for RustiumError {
+    fn from(val: AuthenticateError) -> Self {
+        RustiumError::AuthenticationError(val)
+    }
+}
 // endregion: From Implementations
 
 // region: Error status code & into response

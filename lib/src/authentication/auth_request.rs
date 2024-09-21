@@ -3,9 +3,13 @@ use axum_extra::{
     headers::{authorization::Bearer, Authorization},
     TypedHeader,
 };
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
-use crate::{authentication::token::TokenUser, error::AuthenticateError, prelude::*};
+use crate::{
+    authentication::token::{decode_auth_token, TokenUser},
+    error::AuthenticateError,
+    prelude::*,
+};
 
 #[async_trait]
 impl<T> FromRequestParts<Arc<T>> for TokenUser {
@@ -20,9 +24,10 @@ impl<T> FromRequestParts<Arc<T>> for TokenUser {
             .await
             .map_err(|_| AuthenticateError::InvalidToken)?;
 
-        let secret = crate::domain::user::SECRET;
-        let token_data =
-            token::decode(bearer.token(), secret).map_err(|_| AuthenticateError::InvalidToken)?;
+        let secret = env::var("RUSTIUM_AUTH_SECRET").unwrap_or_else(|_| "secret".into());
+
+        let token_data = decode_auth_token(bearer.token(), &secret)
+            .map_err(|_| AuthenticateError::InvalidToken)?;
 
         let _user = match User::get(token_data.claims.user.id.clone(), state).await {
             Ok(user) => user,

@@ -19,6 +19,7 @@ use crate::{
         query_builder::surreal_query_builder,
     },
     prelude::*,
+    settings::database::DatabaseSettings,
 };
 // region: Traits
 
@@ -42,21 +43,18 @@ pub struct IdThing(pub String);
 // region: Implementation
 
 impl SurrealDAL {
-    pub async fn new(
-        uri: &str,
-        username: &str,
-        password: &str,
-        namespace: &str,
-        dbname: &str,
-    ) -> RustiumResult<Self> {
-        let connection = Surreal::new::<Ws>(uri).await?;
+    pub async fn new(conf: DatabaseSettings) -> RustiumResult<Self> {
+        let connection = Surreal::new::<Ws>(&conf.uri).await?;
         connection
             .signin(Root {
-                username: username,
-                password: password,
+                username: &conf.username,
+                password: &conf.password,
             })
             .await?;
-        connection.use_ns(namespace).use_db(dbname).await?;
+        connection
+            .use_ns(&conf.namespace)
+            .use_db(&conf.dbname)
+            .await?;
         Ok(SurrealDAL(connection))
     }
 
