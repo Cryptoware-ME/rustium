@@ -1,16 +1,16 @@
 //! TakeXImpl implementations for the surrealdb Object types.
 
+use std::time::Duration;
+use surrealdb::sql::{Object, Uuid};
+
 use crate::{
     datastore::{object::TakeXImpl, surreal_dal::IdThing},
     prelude::*,
 };
-use std::time::Duration;
-use surrealdb::sql::{Object, Uuid};
-
 // region: Implementations
 
 impl TakeXImpl<String> for Object {
-    fn take_x_impl(&mut self, k: &str) -> Result<Option<String>> {
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<String>> {
         let v = self.remove(k).map(|v| Wrap(v).try_into());
         match v {
             None => Ok(None),
@@ -21,7 +21,7 @@ impl TakeXImpl<String> for Object {
 }
 
 impl TakeXImpl<f64> for Object {
-    fn take_x_impl(&mut self, k: &str) -> Result<Option<f64>> {
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<f64>> {
         let v = self.remove(k).map(|v| Wrap(v).try_into());
         match v {
             None => Ok(None),
@@ -32,7 +32,7 @@ impl TakeXImpl<f64> for Object {
 }
 
 impl TakeXImpl<i64> for Object {
-    fn take_x_impl(&mut self, k: &str) -> Result<Option<i64>> {
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<i64>> {
         let v = self.remove(k).map(|v| Wrap(v).try_into());
         match v {
             None => Ok(None),
@@ -43,13 +43,13 @@ impl TakeXImpl<i64> for Object {
 }
 
 impl TakeXImpl<bool> for Object {
-    fn take_x_impl(&mut self, k: &str) -> Result<Option<bool>> {
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<bool>> {
         Ok(self.remove(k).map(|v| v.is_true()))
     }
 }
 
 impl TakeXImpl<Uuid> for Object {
-    fn take_x_impl(&mut self, k: &str) -> Result<Option<Uuid>> {
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<Uuid>> {
         let v = self.remove(k).map(|v| Wrap(v).try_into());
         match v {
             None => Ok(None),
@@ -60,7 +60,7 @@ impl TakeXImpl<Uuid> for Object {
 }
 
 impl TakeXImpl<Duration> for Object {
-    fn take_x_impl(&mut self, k: &str) -> Result<Option<Duration>> {
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<Duration>> {
         let v = self.remove(k).map(|v| Wrap(v).try_into());
         match v {
             None => Ok(None),
@@ -71,7 +71,7 @@ impl TakeXImpl<Duration> for Object {
 }
 
 impl TakeXImpl<IdThing> for Object {
-    fn take_x_impl(&mut self, k: &str) -> Result<Option<IdThing>> {
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<IdThing>> {
         let v = self.remove(k).map(|v| Wrap(v).try_into());
         match v {
             None => Ok(None),

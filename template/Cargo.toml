@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 rustium = { path = "../lib" }
+tokio = { version = "1.33.0" }

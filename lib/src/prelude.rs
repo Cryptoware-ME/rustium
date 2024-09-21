@@ -1,7 +1,7 @@
 //! Crate Prelude
 
 pub use crate::error::RustiumError;
-pub use crate::result::Result;
+pub use crate::result::RustiumResult;
 
 /// Generic Wrapper tuple struct for newtype pattern
 /// for external type to type From/TryFrom implementations

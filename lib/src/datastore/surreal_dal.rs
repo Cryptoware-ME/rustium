@@ -1,5 +1,18 @@
 //! Data Access layer for SurrealDB
 
+use modql::{
+    filter::ListOptions,
+    filter::{FilterGroups, IntoFilterNodes},
+};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::collections::BTreeMap;
+use surrealdb::{
+    engine::remote::ws::{Client, Ws},
+    opt::auth::Root,
+    sql::{thing, Datetime, Object, Thing, Value},
+    Surreal,
+};
+
 use crate::{
     datastore::{
         object::{map, TakeX},
@@ -7,17 +20,6 @@ use crate::{
     },
     prelude::*,
 };
-use modql::{
-    filter::ListOptions,
-    filter::{FilterGroups, IntoFilterNodes},
-};
-use serde::{Deserialize, Serialize};
-use surrealdb::{
-    dbs::Session,
-    kvs::Datastore,
-    sql::{thing, Array, Datetime, Object, Value},
-};
-
 // region: Traits
 
 /// Marker traits for types that can be used for query
@@ -31,10 +33,7 @@ pub trait Filterable: IntoFilterNodes {}
 // region: Structs
 
 /// Store struct normalizing CRUD SurrealDB application calls
-pub struct SurrealDAL {
-    store: Datastore,
-    session: Session,
-}
+pub struct SurrealDAL(Surreal<Client>);
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct IdThing(pub String);
@@ -43,94 +42,103 @@ pub struct IdThing(pub String);
 // region: Implementation
 
 impl SurrealDAL {
-    pub async fn new(store: &str, namespace: &str, collection: &str) -> Result<Self> {
-        let store = Datastore::new(store).await?;
-        let session = Session::default().with_ns(namespace).with_db(collection);
-        Ok(SurrealDAL { store, session })
+    pub async fn new(
+        uri: &str,
+        username: &str,
+        password: &str,
+        namespace: &str,
+        dbname: &str,
+    ) -> RustiumResult<Self> {
+        let connection = Surreal::new::<Ws>(uri).await?;
+        connection
+            .signin(Root {
+                username: username,
+                password: password,
+            })
+            .await?;
+        connection.use_ns(namespace).use_db(dbname).await?;
+        Ok(SurrealDAL(connection))
     }
 
-    pub async fn exec_get(&self, tid: &str) -> Result<Object> {
+    pub async fn exec_get<T: DeserializeOwned>(&self, tid: IdThing) -> RustiumResult<T> {
         let sql = "SELECT * FROM $th";
 
-        let vars = map!["th".into() => thing(tid)?.into()];
+        let vars: BTreeMap<String, Thing> = map!["th".into() => thing(&tid.0)?];
 
-        let ress = self.store.execute(sql, &self.session, Some(vars)).await?;
+        let mut ress = self.0.query(sql).bind(vars).await?;
 
-        let first_res = ress.into_iter().next().expect("Did not get a response");
-
-        Wrap(first_res.result?.first()).try_into()
+        match ress.take(0)? {
+            Some(object) => Ok(object),
+            None => Err(RustiumError::NotFound(String::from("Object not found"))),
+        }
     }
 
-    pub async fn exec_create<T: Creatable>(&self, tb: &str, data: T) -> Result<IdThing> {
+    pub async fn exec_create<T: Creatable>(&self, tb: &str, data: T) -> RustiumResult<IdThing> {
         let sql = "CREATE type::table($tb) CONTENT $data RETURN id";
 
         let mut data: Object = Wrap(data.into()).try_into()?;
+
         match Datetime::default().timestamp_nanos_opt() {
             Some(now) => {
                 data.insert("created_at".into(), now.into());
             }
             None => {
                 return Err(RustiumError::CreateTableError(String::from(
-                    "Error creating table",
+                    "Error creating table record",
                 )));
             }
         };
 
-        let vars = map![
+        let vars: BTreeMap<String, Value> = map![
 			"tb".into() => tb.into(),
 			"data".into() => Value::from(data)];
 
-        let ress = self.store.execute(sql, &self.session, Some(vars)).await?;
-        let first_val = ress
-            .into_iter()
-            .next()
-            .map(|r| r.result)
-            .expect("id not returned")?;
+        let mut ress = self.0.query(sql).bind(vars).await?;
 
-        if let Value::Object(mut val) = first_val.first() {
-            val.take_x_val("id")
-                .map_err(|ex| RustiumError::StoreFailToCreate(f!("exec_create {tb} {ex}")))
-        } else {
-            Err(RustiumError::StoreFailToCreate(f!(
+        let val: Option<Object> = ress.take(0)?;
+
+        match val {
+            Some(mut object) => object.take_x_val("id").map_err(|ex| {
+                RustiumError::StoreFailToCreate(f!("exec_create failed for {tb} :: {ex}"))
+            }),
+            None => Err(RustiumError::StoreFailToCreate(f!(
                 "exec_create {tb}, nothing returned."
-            )))
+            ))),
         }
     }
 
-    pub async fn exec_merge<T: Patchable>(&self, tid: &str, data: T) -> Result<IdThing> {
+    pub async fn exec_merge<T: Patchable>(&self, tid: &str, data: T) -> RustiumResult<IdThing> {
         let sql = "UPDATE $th MERGE $data RETURN id";
 
-        let vars = map![
+        let vars: BTreeMap<String, Value> = map![
 			"th".into() => thing(tid)?.into(),
 			"data".into() => data.into()];
 
-        let ress = self.store.execute(sql, &self.session, Some(vars)).await?;
+        let mut ress = self.0.query(sql).bind(vars).await?;
 
-        let first_res = ress.into_iter().next().expect("id not returned");
+        let val: Option<Object> = ress.take(0)?;
 
-        let result = first_res.result?;
-
-        if let Value::Object(mut val) = result.first() {
-            val.take_x_val("id")
-        } else {
-            Err(RustiumError::StoreFailToCreate(f!(
+        match val {
+            Some(mut object) => object.take_x_val("id"),
+            None => Err(RustiumError::StoreFailToCreate(f!(
                 "exec_merge {tid}, nothing returned."
-            )))
+            ))),
         }
     }
 
-    pub async fn exec_delete(&self, tid: &str) -> Result<String> {
+    pub async fn exec_delete(&self, tid: IdThing) -> RustiumResult<bool> {
         let sql = "DELETE $th";
 
-        let vars = map!["th".into() => thing(tid)?.into()];
+        let vars: BTreeMap<String, Thing> = map!["th".into() => thing(&tid.0)?];
 
-        let ress = self.store.execute(sql, &self.session, Some(vars)).await?;
+        let mut ress = self.0.query(sql).bind(vars).await?;
 
-        let first_res = ress.into_iter().next().expect("Did not get a response");
+        let val: Option<Object> = ress.take(0)?;
 
-        first_res.result?;
-
-        Ok(tid.to_string())
+        match val {
+            Some(_) => Ok(true),
+            None => Err(RustiumError::NotFound(String::from("Could not delete"))),
+        }
     }
 
     pub async fn exec_select<O: Into<FilterGroups>>(
@@ -138,15 +146,14 @@ impl SurrealDAL {
         tb: &str,
         filter_groups: Option<O>,
         list_options: ListOptions,
-    ) -> Result<Vec<Object>> {
+    ) -> RustiumResult<Vec<Object>> {
         let filter_or_groups = filter_groups.map(|v| v.into());
+
         let (sql, vars) = surreal_query_builder(tb, filter_or_groups, list_options)?;
 
-        let ress = self.store.execute(&sql, &self.session, Some(vars)).await?;
+        let mut ress = self.0.query(sql).bind(vars).await?;
 
-        let first_res = ress.into_iter().next().expect("Did not get a response");
-
-        let array: Array = Wrap(first_res.result?).try_into()?;
+        let array: Vec<Value> = ress.take(0)?;
 
         array
             .into_iter()

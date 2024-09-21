@@ -8,13 +8,14 @@
 //! - ListOptions.order_by
 //!
 
-use crate::prelude::*;
 use modql::{
     filter::ListOptions,
     filter::{FilterGroups, OpVal, OpValBool, OpValFloat64, OpValInt64, OpValString},
 };
 use std::collections::BTreeMap;
 use surrealdb::sql::Value;
+
+use crate::prelude::*;
 
 // region: Public
 
@@ -23,7 +24,7 @@ pub(super) fn surreal_query_builder(
     tb: &str,
     or_groups: Option<FilterGroups>,
     list_options: ListOptions,
-) -> Result<(String, BTreeMap<String, Value>)> {
+) -> RustiumResult<(String, BTreeMap<String, Value>)> {
     let mut sql = String::from("SELECT * FROM type::table($tb)");
 
     let mut vars = BTreeMap::from([("tb".into(), tb.into())]);
@@ -89,7 +90,7 @@ pub(super) fn surreal_query_builder(
 // region: Private
 
 /// Private helper to sqlize the OpVals for SurrealDB
-fn sqlize(opval: OpVal, prop_name: &str, var_idx: &str) -> Result<(String, Value)> {
+fn sqlize(opval: OpVal, prop_name: &str, var_idx: &str) -> RustiumResult<(String, Value)> {
     Ok(match opval {
         // Eq
         OpVal::String(OpValString::Eq(v)) => (f!("{prop_name} = ${var_idx}"), v.into()),

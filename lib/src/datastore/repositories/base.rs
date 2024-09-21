@@ -1,38 +1,44 @@
 //! Base data repository
 
+use modql::filter::ListOptions;
+use serde::de::DeserializeOwned;
+use std::sync::Arc;
+use surrealdb::sql::Object;
+
 use crate::{
     datastore::surreal_dal::{Creatable, Filterable, IdThing, Patchable, SurrealDAL},
     prelude::*,
 };
-use modql::filter::ListOptions;
-use std::sync::Arc;
-use surrealdb::sql::Object;
 
 // region: Public Base Repo
 
-pub async fn get<E>(dal: &Arc<SurrealDAL>, id: &str) -> Result<E>
+pub async fn get<E: DeserializeOwned>(dal: &Arc<SurrealDAL>, id: &str) -> RustiumResult<E>
 where
     E: TryFrom<Object, Error = RustiumError>,
 {
-    dal.exec_get(id).await?.try_into()
+    dal.exec_get(IdThing(id.into())).await
 }
 
-pub async fn create<D>(dal: &Arc<SurrealDAL>, entity: &'static str, data: D) -> Result<IdThing>
+pub async fn create<D>(
+    dal: &Arc<SurrealDAL>,
+    entity: &'static str,
+    data: D,
+) -> RustiumResult<IdThing>
 where
     D: Creatable,
 {
-    Ok(dal.exec_create(entity, data).await?)
+    dal.exec_create(entity, data).await
 }
 
-pub async fn update<D>(dal: &Arc<SurrealDAL>, id: &str, data: D) -> Result<IdThing>
+pub async fn update<D>(dal: &Arc<SurrealDAL>, id: &str, data: D) -> RustiumResult<IdThing>
 where
     D: Patchable,
 {
-    Ok(dal.exec_merge(id, data).await?)
+    dal.exec_merge(id, data).await
 }
 
-pub async fn delete(dal: &Arc<SurrealDAL>, id: &str) -> Result<String> {
-    Ok(dal.exec_delete(id).await?)
+pub async fn delete(dal: &Arc<SurrealDAL>, id: &str) -> RustiumResult<bool> {
+    dal.exec_delete(IdThing(id.into())).await
 }
 
 pub async fn list<E, F>(
@@ -40,7 +46,7 @@ pub async fn list<E, F>(
     entity: &'static str,
     filter: Option<F>,
     opts: ListOptions,
-) -> Result<Vec<E>>
+) -> RustiumResult<Vec<E>>
 where
     E: TryFrom<Object, Error = RustiumError>,
     F: Filterable + std::fmt::Debug,
@@ -54,6 +60,6 @@ where
     objects
         .into_iter()
         .map(|o| o.try_into())
-        .collect::<Result<_>>()
+        .collect::<RustiumResult<_>>()
 }
 // endregion: Public Base Repo

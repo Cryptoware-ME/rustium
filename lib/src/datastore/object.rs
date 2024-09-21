@@ -26,15 +26,15 @@ pub(crate) use map;
 // region: Traits
 
 pub trait TakeXImpl<T> {
-    fn take_x_impl(&mut self, k: &str) -> Result<Option<T>>;
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<T>>;
 }
 
 pub trait TakeX {
-    fn take_x<T>(&mut self, k: &str) -> Result<Option<T>>
+    fn take_x<T>(&mut self, k: &str) -> RustiumResult<Option<T>>
     where
         Self: TakeXImpl<T>;
 
-    fn take_x_val<T>(&mut self, k: &str) -> Result<T>
+    fn take_x_val<T>(&mut self, k: &str) -> RustiumResult<T>
     where
         Self: TakeXImpl<T>;
 }
@@ -44,14 +44,14 @@ pub trait TakeX {
 
 /// Blanket Implementation
 impl<O> TakeX for O {
-    fn take_x<T>(&mut self, k: &str) -> Result<Option<T>>
+    fn take_x<T>(&mut self, k: &str) -> RustiumResult<Option<T>>
     where
         Self: TakeXImpl<T>,
     {
         TakeXImpl::take_x_impl(self, k)
     }
 
-    fn take_x_val<T>(&mut self, k: &str) -> Result<T>
+    fn take_x_val<T>(&mut self, k: &str) -> RustiumResult<T>
     where
         Self: TakeXImpl<T>,
     {

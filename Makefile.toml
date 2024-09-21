@@ -60,7 +60,7 @@ run_task = { name = [
 
 [tasks.book-build-ci]
 workspace = false
-run_task = { name = ["book-cpreadme", "book-preprocessors", "book-build"] }
+run_task = { name = ["book-preprocessors", "book-build"] }
 
 [tasks.book-cpreadme]
 workspace = false

@@ -7,13 +7,16 @@ use std::convert::Infallible;
 #[derive(Debug)]
 pub enum RustiumError {
     IO(std::io::Error),
+    NotFound(String),
     PropertyNotFound(String),
     Unexpected(Infallible),
-    SurrealError(surrealdb::error::Db),
+    SurrealError(surrealdb::Error),
+    SurrealDBError(surrealdb::error::Db),
     StoreFailToCreate(String),
     ModqlOperatorNotSupported(String),
     CreateTableError(String),
     UserNotAllowed(String),
+    Unresolved(String),
 }
 
 // endregion: Enum
@@ -32,11 +35,18 @@ impl From<Infallible> for RustiumError {
     }
 }
 
-impl From<surrealdb::error::Db> for RustiumError {
-    fn from(val: surrealdb::error::Db) -> Self {
+impl From<surrealdb::Error> for RustiumError {
+    fn from(val: surrealdb::Error) -> Self {
         RustiumError::SurrealError(val)
     }
 }
+
+impl From<surrealdb::error::Db> for RustiumError {
+    fn from(val: surrealdb::error::Db) -> Self {
+        RustiumError::SurrealDBError(val)
+    }
+}
+
 // endregion: From Implementations
 
 // region: Error Boiler
