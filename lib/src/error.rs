@@ -1,24 +1,93 @@
 //! This is the main application Error type.
 
+use argon2::Error as ArgonError;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use redis::RedisError;
+use serde_json::json;
 use std::convert::Infallible;
+use std::num::{ParseFloatError, ParseIntError};
+use std::string::FromUtf8Error;
+use tokio::task::JoinError;
 
 // region: Enum
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
+#[error("...")]
 pub enum RustiumError {
+    #[error("Server error occured")]
     IO(std::io::Error),
+    #[error("Resource not found")]
     NotFound(String),
+    #[error("Property not found")]
     PropertyNotFound(String),
+    #[error("Unexpected error")]
     Unexpected(Infallible),
+    #[error("DB engine error")]
     SurrealError(surrealdb::Error),
+    #[error("DB operation error")]
     SurrealDBError(surrealdb::error::Db),
+    #[error("DB create failed")]
     StoreFailToCreate(String),
+    #[error("Query operator not supported")]
     ModqlOperatorNotSupported(String),
+    #[error("Error creating table record")]
     CreateTableError(String),
+    #[error("Missing or invalid permissions")]
     UserNotAllowed(String),
+    #[error("Unresolved error")]
     Unresolved(String),
+    #[error("Failed to parse ID")]
+    ParseObjectID(String),
+    #[error("Authentication error")]
+    AuthenticationError(AuthenticateError),
+    #[error("Bad request")]
+    BadRequest(BadRequest),
+    #[error("Tokio task join error")]
+    RunSyncTask(JoinError),
+    #[error("Argon2 error")]
+    HashPassword(ArgonError),
+    #[error("Message queue error")]
+    AMPQError(amqprs::error::Error),
+    #[error("Float parse error")]
+    FloatParse(ParseFloatError),
+    #[error("Int parse error")]
+    IntParse(ParseIntError),
+    #[error("User already exists")]
+    UserAlreadyExists(String),
+    #[error("Invalid signature")]
+    InvalidSignature(String),
+    #[error("Invalid signer")]
+    InvalidSigner(String),
+    #[error("UTF8 convert error")]
+    ToUTF8Error(FromUtf8Error),
+    #[error("Redis error")]
+    RedisErr(RedisError),
+    #[error("Redis lock error")]
+    RedisLockError(String),
+    #[error("An error occured")]
+    CustomError(String),
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error("...")]
+pub enum AuthenticateError {
+    #[error("Wrong authentication credentials")]
+    WrongCredentials,
+    #[error("Failed to create authentication token")]
+    TokenCreation,
+    #[error("Invalid authentication credentials")]
+    InvalidToken,
+    #[error("User doesn't have permission to access this resource")]
+    UnauthorizedRequest,
+    #[error("User is locked")]
+    Locked,
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Bad Request")]
+pub struct BadRequest {}
 // endregion: Enum
 
 // region: From Implementations
@@ -49,13 +118,57 @@ impl From<surrealdb::error::Db> for RustiumError {
 
 // endregion: From Implementations
 
-// region: Error Boiler
+// region: Error status code & into response
+impl RustiumError {
+    fn get_codes(&self) -> (StatusCode, u16) {
+        match *self {
+            // 4XX Errors
+            RustiumError::ParseObjectID(_) => (StatusCode::BAD_REQUEST, 40001),
+            RustiumError::BadRequest(_) => (StatusCode::BAD_REQUEST, 40002),
+            RustiumError::NotFound(_) => (StatusCode::NOT_FOUND, 40003),
+            RustiumError::AuthenticationError(AuthenticateError::WrongCredentials) => {
+                (StatusCode::UNAUTHORIZED, 40004)
+            }
+            RustiumError::AuthenticationError(AuthenticateError::InvalidToken) => {
+                (StatusCode::UNAUTHORIZED, 40005)
+            }
+            RustiumError::AuthenticationError(AuthenticateError::Locked) => {
+                (StatusCode::LOCKED, 40006)
+            }
+            RustiumError::AuthenticationError(AuthenticateError::UnauthorizedRequest) => {
+                (StatusCode::FORBIDDEN, 40007)
+            }
 
-impl std::fmt::Display for RustiumError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> core::result::Result<(), std::fmt::Error> {
-        write!(fmt, "{self:?}")
+            // 5XX Errors
+            RustiumError::AuthenticationError(AuthenticateError::TokenCreation) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, 5001)
+            }
+            RustiumError::RunSyncTask(_) => (StatusCode::INTERNAL_SERVER_ERROR, 5005),
+            RustiumError::HashPassword(_) => (StatusCode::INTERNAL_SERVER_ERROR, 5006),
+            _ => (StatusCode::BAD_REQUEST, 400),
+        }
+    }
+
+    pub fn bad_request() -> Self {
+        RustiumError::BadRequest(BadRequest {})
+    }
+
+    pub fn not_found(resource_name: &str) -> Self {
+        RustiumError::NotFound(resource_name.into())
+    }
+
+    pub fn unauthorized() -> Self {
+        RustiumError::AuthenticationError(AuthenticateError::UnauthorizedRequest)
     }
 }
 
-impl std::error::Error for RustiumError {}
-// endregion: Error Boiler
+impl IntoResponse for RustiumError {
+    fn into_response(self) -> Response {
+        let (status_code, code) = self.get_codes();
+        let message = self.to_string();
+        let body = Json(json!({ "code": code, "message": message }));
+
+        (status_code, body).into_response()
+    }
+}
+// endregion: Error status code & into response

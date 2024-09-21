@@ -28,3 +28,7 @@ tower-http = { version = "0.6.0", features = [
 config = "0.14.0"
 bytes = "1.7.2"
 mime = "0.3.17"
+thiserror = "1.0.63"
+argon2 = "0.5.3"
+redis = "0.27.2"
+amqprs = "2.0.0"
