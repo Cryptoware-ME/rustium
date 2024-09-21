@@ -1,41 +1,26 @@
+pub mod api;
+pub mod auth;
+pub mod database;
+pub mod logger;
+pub mod server;
+
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
-use std::{env, fmt};
+use std::env;
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct App {
-    pub name: String,
-    pub version: u64,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Server {
-    pub port: u16,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Logger {
-    pub level: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Database {
-    pub uri: String,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Auth {
-    pub secret: String,
-}
+use crate::settings::{
+    api::ApiSettings, auth::AuthSettings, database::DatabaseSettings, logger::LoggerSettings,
+    server::ServerSettings,
+};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     pub environment: String,
-    pub server: Server,
-    pub logger: Logger,
-    pub database: Database,
-    pub auth: Auth,
+    pub api: ApiSettings,
+    pub server: ServerSettings,
+    pub logger: LoggerSettings,
+    pub database: DatabaseSettings,
+    pub auth: AuthSettings,
 }
 
 impl Settings {
@@ -47,11 +32,5 @@ impl Settings {
             .add_source(Environment::default().separator("__"));
 
         builder.build()?.try_deserialize()
-    }
-}
-
-impl fmt::Display for Server {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0.0.0.0:{}", &self.port)
     }
 }

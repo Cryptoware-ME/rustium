@@ -68,6 +68,8 @@ pub enum RustiumError {
     RedisLockError(String),
     #[error("An error occured")]
     CustomError(String),
+    #[error("A JWT error occured")]
+    JWTError(jsonwebtoken::errors::Error),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -113,6 +115,12 @@ impl From<surrealdb::Error> for RustiumError {
 impl From<surrealdb::error::Db> for RustiumError {
     fn from(val: surrealdb::error::Db) -> Self {
         RustiumError::SurrealDBError(val)
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for RustiumError {
+    fn from(val: jsonwebtoken::errors::Error) -> Self {
+        RustiumError::JWTError(val)
     }
 }
 
