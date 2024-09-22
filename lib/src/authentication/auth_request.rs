@@ -33,14 +33,7 @@ impl FromRequestParts<Arc<AppContext>> for TokenUser {
         let token_data = decode_auth_token(bearer.token(), &secret)
             .map_err(|_| AuthenticateError::InvalidToken)?;
 
-        let user_service = state.get_service::<AuthService>();
-
-        // let _user = match User::get(token_data.claims.user.id.clone(), state).await {
-        //     Ok(user) => user,
-        //     Err(_) => {
-        //         return Err(Error::AuthenticationError(AuthenticateError::InvalidToken));
-        //     }
-        // };
+        // check user exist
 
         Ok(token_data.claims.user)
     }
