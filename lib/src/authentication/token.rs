@@ -10,7 +10,7 @@ type TokenDecodeResult = RustiumResult<TokenData<Claims>>;
 static VALIDATION: Lazy<Validation> = Lazy::new(Validation::default);
 static HEADER: Lazy<Header> = Lazy::new(Header::default);
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TokenUser {
     pub id: String,
     pub username: String,
@@ -27,7 +27,17 @@ impl<T: AuthUser> From<T> for TokenUser {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl From<Box<dyn AuthUser>> for TokenUser {
+    fn from(user: Box<dyn AuthUser>) -> Self {
+        Self {
+            id: user.get_id(),
+            username: user.get_username(),
+            is_admin: user.is_admin(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub exp: usize,
     pub iat: usize,
