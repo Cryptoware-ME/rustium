@@ -3,12 +3,12 @@ use axum_extra::{
     headers::{authorization::Bearer, Authorization},
     TypedHeader,
 };
-use shaku::{HasComponent, Module};
-use std::{env, sync::Arc};
+use di_axum::Inject;
+use std::sync::Arc;
 
 use crate::{
     authentication::{
-        auth_service::AuthService,
+        auth_service::IAuthService,
         auth_user::AuthUser,
         token::{decode_auth_token, TokenUser},
     },
@@ -18,27 +18,30 @@ use crate::{
 };
 
 #[async_trait]
-impl<M: Module + HasComponent<dyn AuthService>> FromRequestParts<Arc<AppContext<M>>> for TokenUser {
+impl FromRequestParts<Arc<AppContext>> for TokenUser {
     type Rejection = RustiumError;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &Arc<AppContext<M>>,
+        state: &Arc<AppContext>,
     ) -> Result<Self, Self::Rejection> {
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
             .await
             .map_err(|_| AuthenticateError::InvalidToken)?;
 
-        let secret = env::var("RUSTIUM_AUTH_SECRET").unwrap_or_else(|_| "secret".into());
+        let Inject(auth_service) =
+            parts
+                .extract::<Inject<dyn IAuthService>>()
+                .await
+                .map_err(|_| {
+                    RustiumError::NotFound("Authentication service was not initialized".into())
+                })?;
 
-        let token_data = decode_auth_token(bearer.token(), &secret)
+        let token_data = decode_auth_token(bearer.token(), &state.settings.server.secret)
             .map_err(|_| AuthenticateError::InvalidToken)?;
 
-        let module = Arc::clone(&state.module);
-        let service: Arc<dyn AuthService> = module.resolve();
-        let token_claims = token_data.clone();
-        let user: Box<dyn AuthUser> = service.get_claim_user(token_claims.claims)?;
+        let user: Box<dyn AuthUser> = auth_service.get_claim_user(token_data.claims).await?;
 
         Ok(user.into())
     }

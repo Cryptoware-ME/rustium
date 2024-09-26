@@ -4,6 +4,7 @@ use argon2::Error as ArgonError;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use di::ValidationError;
 use redis::RedisError;
 use serde_json::json;
 use std::convert::Infallible;
@@ -70,10 +71,10 @@ pub enum RustiumError {
     CustomError(String),
     #[error("A JWT error occured")]
     JWTError(jsonwebtoken::errors::Error),
-    #[error("Service is not ready or not loading")]
-    ServiceInversionError(String),
-    // #[error("Invalid or expired service")]
-    // ServiceValidationError(/*type here*/),
+    #[error("Service is not ready or not loaded")]
+    ServiceInversionError(ValidationError),
+    // #[error("...")]
+    // CustomError(ErrorType),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -146,11 +147,11 @@ impl From<AuthenticateError> for RustiumError {
     }
 }
 
-// impl From</** type here */> for RustiumError {
-//     fn from(val: /** type here */) -> Self {
-//         RustiumError::ServiceValidationError(val)
-//     }
-// }
+impl From<ValidationError> for RustiumError {
+    fn from(val: ValidationError) -> Self {
+        RustiumError::ServiceInversionError(val)
+    }
+}
 // endregion: From Implementations
 
 // region: Error status code & into response

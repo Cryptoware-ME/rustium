@@ -16,7 +16,7 @@ use crate::settings::{
 };
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct Settings {
+pub struct RustiumSettings {
     pub environment: String,
     pub api: ApiSettings,
     pub server: ServerSettings,
@@ -27,7 +27,7 @@ pub struct Settings {
     pub rabbit: RabbitSettings,
 }
 
-impl Settings {
+impl RustiumSettings {
     pub fn new(config_fille_path: &str) -> Result<Self, ConfigError> {
         let run_mode = env::var("RUSTIUM_ENV").unwrap_or_else(|_| "development".into());
 

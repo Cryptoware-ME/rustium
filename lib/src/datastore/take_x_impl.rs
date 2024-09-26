@@ -4,7 +4,7 @@ use std::time::Duration;
 use surrealdb::sql::{Object, Uuid};
 
 use crate::{
-    datastore::{object::TakeXImpl, surreal_dal::IdThing},
+    datastore::{idb_dal::IdThing, object::TakeXImpl},
     prelude::*,
 };
 // region: Implementations

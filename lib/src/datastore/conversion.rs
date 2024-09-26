@@ -3,7 +3,7 @@
 use std::time::Duration;
 use surrealdb::sql::{Array, Object, Uuid, Value};
 
-use crate::{datastore::surreal_dal::IdThing, prelude::*};
+use crate::{datastore::idb_dal::IdThing, prelude::*};
 
 // region: Implementations
 

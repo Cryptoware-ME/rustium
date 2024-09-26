@@ -1,18 +1,26 @@
+use axum::async_trait;
+use di::injectable;
 use redis::{
-    Client, Commands, Connection, ConnectionAddr, ConnectionInfo, FromRedisValue,
-    RedisConnectionInfo, SetExpiry, SetOptions,
+    Client, Commands, Connection, ConnectionAddr, ConnectionInfo, RedisConnectionInfo, SetExpiry,
+    SetOptions, Value,
 };
 
-use crate::{prelude::*, settings::redis::RedisSettings};
+use crate::{datastore::ikv_dal::IKvDal, prelude::*, settings::redis::RedisSettings};
 // region: Structs
 
-///
+#[injectable(IKvDal)]
 pub struct RedisDAL {
-    pub con: Connection,
+    pub con: Option<Connection>,
 }
 // endregion: Structs
 
 // region: Implementation
+
+impl Default for RedisDAL {
+    fn default() -> Self {
+        Self { con: Option::None }
+    }
+}
 
 impl RedisDAL {
     pub async fn new(conf: RedisSettings) -> RustiumResult<Self> {
@@ -26,24 +34,30 @@ impl RedisDAL {
             },
         })?;
         let con = client.get_connection()?;
-        Ok(Self { con })
+        Ok(Self { con: Some(con) })
+    }
+}
+
+#[async_trait]
+impl IKvDal for RedisDAL {
+    async fn get(&mut self, key: &str) -> RustiumResult<Value> {
+        Ok(self
+            .con
+            .as_mut()
+            .expect("Redis service not initialized")
+            .get(key)?)
     }
 
-    pub fn get<T: FromRedisValue>(&mut self, key: &str) -> RustiumResult<T> {
-        Ok(self.con.get(key)?)
-    }
-
-    pub fn set<T: FromRedisValue>(
-        &mut self,
-        key: &str,
-        val: u64,
-        exp: SetExpiry,
-    ) -> RustiumResult<T> {
-        Ok(self.con.set_options(
-            key,
-            val,
-            SetOptions::default().get(true).with_expiration(exp),
-        )?)
+    async fn set(&mut self, key: &str, val: u64, exp: SetExpiry) -> RustiumResult<Value> {
+        Ok(self
+            .con
+            .as_mut()
+            .expect("Redis service not initialized")
+            .set_options(
+                key,
+                val,
+                SetOptions::default().get(true).with_expiration(exp),
+            )?)
     }
 }
 // endregion: Implementation

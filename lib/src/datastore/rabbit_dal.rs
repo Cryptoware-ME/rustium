@@ -1,15 +1,24 @@
 use amqprs::connection::{Connection, OpenConnectionArguments};
+use di::injectable;
 
-use crate::{prelude::*, settings::rabbit::RabbitSettings};
+use crate::{datastore::imq_dal::IMqDal, prelude::*, settings::rabbit::RabbitSettings};
 
 // region: Structs
 
+#[injectable(IMqDal)]
 pub struct RabbitDAL {
-    pub con: Connection,
+    pub con: Option<Connection>,
 }
 // endregion: Structs
 
 // region: Implementation
+
+impl IMqDal for RabbitDAL {}
+impl Default for RabbitDAL {
+    fn default() -> Self {
+        Self { con: Option::None }
+    }
+}
 
 impl RabbitDAL {
     pub async fn new(conf: RabbitSettings) -> RustiumResult<Self> {
@@ -21,7 +30,7 @@ impl RabbitDAL {
         ))
         .await?;
 
-        Ok(Self { con })
+        Ok(Self { con: Some(con) })
     }
 }
 // endregion: Implementation

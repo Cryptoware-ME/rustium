@@ -4,6 +4,7 @@ use std::fmt;
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServerSettings {
     pub port: u16,
+    pub secret: String,
 }
 
 impl fmt::Display for ServerSettings {

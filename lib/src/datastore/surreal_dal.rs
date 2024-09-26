@@ -1,10 +1,8 @@
 //! Data Access layer for SurrealDB
 
-use modql::{
-    filter::ListOptions,
-    filter::{FilterGroups, IntoFilterNodes},
-};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use axum::async_trait;
+use di::injectable;
+use modql::{filter::FilterGroups, filter::ListOptions};
 use std::collections::BTreeMap;
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
@@ -15,33 +13,29 @@ use surrealdb::{
 
 use crate::{
     datastore::{
+        idb_dal::{IDbDal, IdThing},
         object::{map, TakeX},
         query_builder::surreal_query_builder,
     },
     prelude::*,
     settings::database::DatabaseSettings,
 };
-// region: Traits
-
-/// Marker traits for types that can be used for query
-
-pub trait Creatable: Into<Value> {}
-pub trait Patchable: Into<Value> {}
-pub trait Deletable: Into<Value> {}
-pub trait Filterable: IntoFilterNodes {}
-// endregionL Traits
-
-// region: Structs
 
 /// Store struct normalizing CRUD SurrealDB application calls
-pub struct SurrealDAL(Surreal<Client>);
+#[injectable(IDbDal)]
+pub struct SurrealDAL {
+    db: Option<Surreal<Client>>,
+}
 
-#[derive(Deserialize, Serialize, Clone)]
-pub struct IdThing(pub String);
+impl Default for SurrealDAL {
+    fn default() -> Self {
+        Self { db: Option::None }
+    }
+}
+
 // endregion: Structs
 
 // region: Implementation
-
 impl SurrealDAL {
     pub async fn new(conf: DatabaseSettings) -> RustiumResult<Self> {
         let connection = Surreal::new::<Ws>(&conf.uri).await?;
@@ -55,23 +49,31 @@ impl SurrealDAL {
             .use_ns(&conf.namespace)
             .use_db(&conf.dbname)
             .await?;
-        Ok(SurrealDAL(connection))
+        Ok(SurrealDAL {
+            db: Some(connection),
+        })
     }
+}
 
-    pub async fn exec_get<T: DeserializeOwned>(&self, tid: IdThing) -> RustiumResult<T> {
+#[async_trait]
+impl IDbDal for SurrealDAL {
+    async fn exec_get(&self, tid: IdThing) -> RustiumResult<Object> {
         let sql = "SELECT * FROM $th";
 
         let vars: BTreeMap<String, Thing> = map!["th".into() => thing(&tid.0)?];
 
-        let mut ress = self.0.query(sql).bind(vars).await?;
-
-        match ress.take(0)? {
-            Some(object) => Ok(object),
-            None => Err(RustiumError::NotFound(String::from("Object not found"))),
+        match &self.db {
+            Some(db) => match db.query(sql).bind(vars).await?.take(0)? {
+                Some(object) => Ok(object),
+                None => Err(RustiumError::NotFound(String::from("Object not found"))),
+            },
+            None => Err(RustiumError::Unresolved(String::from(
+                "DB service not initialized",
+            ))),
         }
     }
 
-    pub async fn exec_create<T: Creatable>(&self, tb: &str, data: T) -> RustiumResult<IdThing> {
+    async fn exec_create(&self, tb: &str, data: Object) -> RustiumResult<IdThing> {
         let sql = "CREATE type::table($tb) CONTENT $data RETURN id";
 
         let mut data: Object = Wrap(data.into()).try_into()?;
@@ -91,67 +93,105 @@ impl SurrealDAL {
 			"tb".into() => tb.into(),
 			"data".into() => Value::from(data)];
 
-        let mut ress = self.0.query(sql).bind(vars).await?;
-
-        let val: Option<Object> = ress.take(0)?;
-
-        match val {
-            Some(mut object) => object.take_x_val("id").map_err(|ex| {
-                RustiumError::StoreFailToCreate(f!("exec_create failed for {tb} :: {ex}"))
-            }),
-            None => Err(RustiumError::StoreFailToCreate(f!(
-                "exec_create {tb}, nothing returned."
+        match &self.db {
+            Some(db) => {
+                let ress: Option<Object> = db.query(sql).bind(vars).await?.take(0)?;
+                match ress {
+                    Some(mut object) => {
+                        let id = object.take_x_val("id").map_err(|ex| {
+                            RustiumError::StoreFailToCreate(f!(
+                                "exec_create failed for {tb} :: {ex}"
+                            ))
+                        })?;
+                        Ok(IdThing(id))
+                    }
+                    None => Err(RustiumError::StoreFailToCreate(f!(
+                        "exec_create {tb}, nothing returned."
+                    ))),
+                }
+            }
+            None => Err(RustiumError::Unresolved(String::from(
+                "DB service not initialized",
             ))),
         }
     }
 
-    pub async fn exec_merge<T: Patchable>(&self, tid: &str, data: T) -> RustiumResult<IdThing> {
+    async fn exec_merge(&self, tid: IdThing, data: Object) -> RustiumResult<IdThing> {
         let sql = "UPDATE $th MERGE $data RETURN id";
 
         let vars: BTreeMap<String, Value> = map![
-			"th".into() => thing(tid)?.into(),
+			"th".into() => thing(&tid.0)?.into(),
 			"data".into() => data.into()];
 
-        let mut ress = self.0.query(sql).bind(vars).await?;
-
-        let val: Option<Object> = ress.take(0)?;
-
-        match val {
-            Some(mut object) => object.take_x_val("id"),
-            None => Err(RustiumError::StoreFailToCreate(f!(
-                "exec_merge {tid}, nothing returned."
+        match &self.db {
+            Some(db) => {
+                let ress: Option<Object> = db.query(sql).bind(vars).await?.take(0)?;
+                match ress {
+                    Some(mut object) => {
+                        let id = object.take_x_val("id").map_err(|ex| {
+                            RustiumError::StoreFailToCreate(f!(
+                                "exec_merge failed for {tid} :: {ex}"
+                            ))
+                        })?;
+                        Ok(IdThing(id))
+                    }
+                    None => Err(RustiumError::StoreFailToCreate(f!(
+                        "exec_merge {tid}, nothing returned."
+                    ))),
+                }
+            }
+            None => Err(RustiumError::Unresolved(String::from(
+                "DB service not initialized",
             ))),
         }
     }
 
-    pub async fn exec_delete(&self, tid: IdThing) -> RustiumResult<bool> {
+    async fn exec_delete(&self, tid: IdThing) -> RustiumResult<bool> {
         let sql = "DELETE $th";
 
         let vars: BTreeMap<String, Thing> = map!["th".into() => thing(&tid.0)?];
 
-        let mut ress = self.0.query(sql).bind(vars).await?;
-
-        let val: Option<Object> = ress.take(0)?;
-
-        match val {
-            Some(_) => Ok(true),
-            None => Err(RustiumError::NotFound(String::from("Could not delete"))),
+        match &self.db {
+            Some(db) => {
+                let ress: Option<Object> = db.query(sql).bind(vars).await?.take(0)?;
+                match ress {
+                    Some(_) => Ok(true),
+                    None => Err(RustiumError::StoreFailToCreate(f!(
+                        "exec_delete {tid}, nothing returned."
+                    ))),
+                }
+            }
+            None => Err(RustiumError::Unresolved(String::from(
+                "DB service not initialized",
+            ))),
         }
     }
 
-    pub async fn exec_select<O: Into<FilterGroups>>(
+    async fn exec_select(
         &self,
         tb: &str,
-        filter_groups: Option<O>,
+        filter_groups: Option<FilterGroups>,
         list_options: ListOptions,
     ) -> RustiumResult<Vec<Object>> {
         let filter_or_groups = filter_groups.map(|v| v.into());
 
         let (sql, vars) = surreal_query_builder(tb, filter_or_groups, list_options)?;
 
-        let mut ress = self.0.query(sql).bind(vars).await?;
-
-        let array: Vec<Value> = ress.take(0)?;
+        let array: Vec<Value> = match &self.db {
+            Some(db) => match db.query(sql).bind(vars).await?.take(0)? {
+                Some(object) => object,
+                None => {
+                    return Err(RustiumError::StoreFailToCreate(f!(
+                        "exec_merge {tb}, nothing returned."
+                    )))
+                }
+            },
+            None => {
+                return Err(RustiumError::Unresolved(String::from(
+                    "DB service not initialized",
+                )))
+            }
+        };
 
         array
             .into_iter()
