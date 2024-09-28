@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use surrealdb::sql::Object;
 
 use crate::{
-    datastore::idb_dal::{Creatable, IDbDal, IdThing, Patchable},
+    datastore::idb::{Creatable, IRustiumDb, IdThing, Patchable},
     prelude::*,
 };
 
@@ -14,7 +14,7 @@ use crate::{
 pub async fn get<E, S>(dal: S, id: &str) -> RustiumResult<E>
 where
     E: TryFrom<Object, Error = RustiumError> + DeserializeOwned + Send + Sync,
-    S: IDbDal,
+    S: IRustiumDb,
 {
     Ok(E::try_from(dal.exec_get(IdThing(id.into())).await?)?)
 }
@@ -22,7 +22,7 @@ where
 pub async fn create<D, S>(dal: S, entity: &'static str, data: D) -> RustiumResult<IdThing>
 where
     D: TryInto<Object, Error = RustiumError> + Creatable + Send + Sync,
-    S: IDbDal,
+    S: IRustiumDb,
 {
     dal.exec_create(entity, data.try_into()?).await
 }
@@ -30,14 +30,14 @@ where
 pub async fn update<D, S>(dal: S, id: &str, data: D) -> RustiumResult<IdThing>
 where
     D: TryInto<Object, Error = RustiumError> + Patchable + Send + Sync,
-    S: IDbDal,
+    S: IRustiumDb,
 {
     dal.exec_merge(IdThing(id.into()), data.try_into()?).await
 }
 
 pub async fn delete<S>(dal: S, id: &str) -> RustiumResult<bool>
 where
-    S: IDbDal,
+    S: IRustiumDb,
 {
     dal.exec_delete(IdThing(id.into())).await
 }
@@ -50,7 +50,7 @@ pub async fn list<E, S>(
 ) -> RustiumResult<Vec<E>>
 where
     E: TryFrom<Object, Error = RustiumError>,
-    S: IDbDal,
+    S: IRustiumDb,
 {
     // query for the Surreal Objects
     let objects = dal.exec_select(entity, filter, opts).await?;

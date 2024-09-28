@@ -8,12 +8,17 @@ pub mod result;
 pub mod service;
 pub mod settings;
 
-/// rexporting packages
+/// re-exporting packages
+pub use argon2;
 pub use axum;
-use datastore::idb_dal::IDbDal;
 pub use di;
 pub use di_axum;
 pub use http;
+pub use modql;
+pub use serde;
+pub use serde_derive;
+pub use serde_json;
+pub use surrealdb;
 pub use tokio;
 pub use tower_http;
 
@@ -31,12 +36,12 @@ use tower_http::{
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 
-use crate::prelude::*;
+use crate::{datastore::idb::IRustiumDb, prelude::*, settings::IRustiumSettings};
 
 pub struct RustiumApp {}
 
 impl RustiumApp {
-    pub async fn launch(provider: &mut ServiceCollection, app: Router<()>) -> RustiumResult<()> {
+    pub async fn launch(provider: ServiceCollection, app: Router<()>) -> RustiumResult<()> {
         // grab listener and define socket
         let address = SocketAddr::from(([0, 0, 0, 0], 8080));
         let listener = TcpListener::bind(address)
@@ -47,7 +52,7 @@ impl RustiumApp {
         let built_provider = provider.build_provider()?;
 
         // init db service
-        let db = match built_provider.get_mut::<dyn IDbDal>() {
+        let db = match built_provider.get_mut::<dyn IRustiumDb>() {
             Some(db) => db,
             None => {
                 return Err(RustiumError::ServiceNotFound(
@@ -61,17 +66,46 @@ impl RustiumApp {
             Err(_) => return Err(RustiumError::PoisonedRef("DB Service is poisoned".into())),
         };
 
-        dbi.as_rustium().expect("").expect("").init().await?;
+        dbi.as_rustium()
+            .expect("DB Service is poisoned")
+            .expect("DB Service is poisoned")
+            .init()
+            .await?;
 
-        // // init settings service
-        // let db = match built_provider.get_mut::<dyn IDbDal>() {
-        //     Some(db) => db,
-        //     None => {
-        //         return Err(RustiumError::ServiceNotFound(
-        //             "The required databse service is missing".into(),
-        //         ))
-        //     }
-        // };
+        // init settings service
+        let settings = match built_provider.get_mut::<dyn IRustiumSettings>() {
+            Some(db) => db,
+            None => {
+                return Err(RustiumError::ServiceNotFound(
+                    "The required databse service is missing".into(),
+                ))
+            }
+        };
+
+        let mut settings = match settings.write() {
+            Ok(setting) => setting,
+            Err(_) => {
+                return Err(RustiumError::PoisonedRef(
+                    "Settings Service is poisoned".into(),
+                ))
+            }
+        };
+
+        settings
+            .as_rustium()
+            .expect("Settings Service is poisoned")
+            .expect("Settings Service is poisoned")
+            .init()
+            .await?;
+
+        let trace_level = match settings.get_logger()?.level.as_str() {
+            "debug" => tracing::Level::DEBUG,
+            "info" => tracing::Level::INFO,
+            "error" => tracing::Level::ERROR,
+            "trace" => tracing::Level::TRACE,
+            "warn" => tracing::Level::WARN,
+            _ => tracing::Level::DEBUG,
+        };
 
         // web app launch
         axum::serve(
@@ -79,8 +113,8 @@ impl RustiumApp {
             app.layer(
                 TraceLayer::new_for_http()
                     .make_span_with(DefaultMakeSpan::new().include_headers(true))
-                    .on_request(DefaultOnRequest::new().level(tracing::Level::DEBUG))
-                    .on_response(DefaultOnResponse::new().level(tracing::Level::DEBUG)),
+                    .on_request(DefaultOnRequest::new().level(trace_level))
+                    .on_response(DefaultOnResponse::new().level(trace_level)),
             )
             .layer(SetSensitiveHeadersLayer::new(std::iter::once(
                 AUTHORIZATION,

@@ -2,7 +2,7 @@
 
 use axum::async_trait;
 use di::{injectable, Ref};
-use modql::{filter::FilterGroups, filter::ListOptions};
+use modql::filter::{FilterGroups, ListOptions};
 use std::collections::BTreeMap;
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
@@ -13,17 +13,17 @@ use surrealdb::{
 
 use crate::{
     datastore::{
-        idb_dal::{IDbDal, IdThing},
+        idb::{IRustiumDb, IdThing},
         object::{map, TakeX},
         query_builder::surreal_query_builder,
     },
     prelude::*,
     service::RustiumService,
-    settings::RustiumSettings,
+    settings::{IRustiumSettings, RustiumSettings},
 };
 
 // region: Structs
-#[injectable(IDbDal)]
+#[injectable(IRustiumDb)]
 pub struct SurrealDAL {
     settings: Ref<RustiumSettings>,
     db: Option<Surreal<Client>>,
@@ -42,7 +42,7 @@ impl Default for SurrealDAL {
 #[async_trait]
 impl RustiumService for SurrealDAL {
     async fn init(&mut self) -> RustiumResult<()> {
-        let conf = self.settings.database.clone();
+        let conf = self.settings.get_database()?;
         let connection = Surreal::new::<Ws>(&conf.uri).await?;
         connection
             .signin(Root {
@@ -68,7 +68,7 @@ impl RustiumService for SurrealDAL {
 }
 
 #[async_trait]
-impl IDbDal for SurrealDAL {
+impl IRustiumDb for SurrealDAL {
     async fn exec_get(&self, tid: IdThing) -> RustiumResult<Object> {
         let sql = "SELECT * FROM $th";
 

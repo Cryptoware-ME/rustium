@@ -1,0 +1,43 @@
+{
+  "environment": "development",
+
+  "server": {
+    "port": 8000
+  },
+
+  "database": {
+    "uri": "",
+    "username": "",
+    "password": "",
+    "namespace": "",
+    "dbname": ""
+  },
+
+  "auth": {
+    "secret": "secret"
+  },
+
+  "logger": {
+    "level": "debug"
+  },
+
+  "api": {
+    "name": "Rustium Example App",
+    "version": 1
+  },
+
+  "redis": {
+    "server": "",
+    "port": "",
+    "username": "",
+    "password": "",
+    "dbidx": ""
+  },
+
+  "rabbit": {
+    "server": "",
+    "port": "",
+    "username": "",
+    "password": ""
+  }
+}

@@ -14,7 +14,7 @@ use crate::{
     },
     error::AuthenticateError,
     prelude::*,
-    settings::IRustiumSettings,
+    settings::{auth::AuthSettings, IRustiumSettings},
 };
 
 #[async_trait]
@@ -23,7 +23,7 @@ impl FromRequestParts<Arc<()>> for TokenUser {
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &Arc<()>,
+        _state: &Arc<()>,
     ) -> Result<Self, Self::Rejection> {
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
@@ -43,9 +43,9 @@ impl FromRequestParts<Arc<()>> for TokenUser {
             .await
             .map_err(|_| RustiumError::NotFound("Settings service was not initialized".into()))?;
 
-		let server_settings: Box<dyn IRustiumSettings
+        let auth_settings: AuthSettings = settings.get_auth()?;
 
-        let token_data = decode_auth_token(bearer.token(), settings.server.secret)
+        let token_data = decode_auth_token(bearer.token(), &auth_settings.secret)
             .map_err(|_| AuthenticateError::InvalidToken)?;
 
         let user: Box<dyn AuthUser> = auth_service.get_claim_user(token_data.claims).await?;
