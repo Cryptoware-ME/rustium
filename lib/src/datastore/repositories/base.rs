@@ -1,7 +1,7 @@
 //! Base data repository
-
 use modql::filter::{FilterGroups, ListOptions};
 use serde::de::DeserializeOwned;
+use std::sync::Arc;
 use surrealdb::sql::Object;
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 
 // region: Public Base Repo
 
-pub async fn get<E, S>(dal: S, id: &str) -> RustiumResult<E>
+pub async fn get<E, S>(dal: Arc<S>, id: &str) -> RustiumResult<E>
 where
     E: TryFrom<Object, Error = RustiumError> + DeserializeOwned + Send + Sync,
     S: IRustiumDb,
@@ -19,7 +19,7 @@ where
     Ok(E::try_from(dal.exec_get(IdThing(id.into())).await?)?)
 }
 
-pub async fn create<D, S>(dal: S, entity: &'static str, data: D) -> RustiumResult<IdThing>
+pub async fn create<D, S>(dal: Arc<S>, entity: &'static str, data: D) -> RustiumResult<IdThing>
 where
     D: TryInto<Object, Error = RustiumError> + Creatable + Send + Sync,
     S: IRustiumDb,
@@ -27,7 +27,7 @@ where
     dal.exec_create(entity, data.try_into()?).await
 }
 
-pub async fn update<D, S>(dal: S, id: &str, data: D) -> RustiumResult<IdThing>
+pub async fn update<D, S>(dal: Arc<S>, id: &str, data: D) -> RustiumResult<IdThing>
 where
     D: TryInto<Object, Error = RustiumError> + Patchable + Send + Sync,
     S: IRustiumDb,
@@ -35,7 +35,7 @@ where
     dal.exec_merge(IdThing(id.into()), data.try_into()?).await
 }
 
-pub async fn delete<S>(dal: S, id: &str) -> RustiumResult<bool>
+pub async fn delete<S>(dal: Arc<S>, id: &str) -> RustiumResult<bool>
 where
     S: IRustiumDb,
 {
@@ -43,7 +43,7 @@ where
 }
 
 pub async fn list<E, S>(
-    dal: S,
+    dal: Arc<S>,
     entity: &'static str,
     filter: Option<FilterGroups>,
     opts: ListOptions,

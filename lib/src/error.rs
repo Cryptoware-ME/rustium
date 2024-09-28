@@ -84,6 +84,8 @@ pub enum RustiumError {
     SettingsError(ConfigError),
     #[error("Service(non mut) is poisoned")]
     PoisonedRef(String),
+    #[error("...")]
+    Infallible(()),
     // #[error("...")]
     // CustomError(ErrorType),
 }
@@ -117,8 +119,8 @@ impl From<std::io::Error> for RustiumError {
 }
 
 impl From<Infallible> for RustiumError {
-    fn from(val: Infallible) -> Self {
-        RustiumError::Unexpected(val)
+    fn from(_: Infallible) -> Self {
+        RustiumError::Infallible(())
     }
 }
 

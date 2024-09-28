@@ -2,7 +2,7 @@ use axum::async_trait;
 use modql::filter::{FilterGroups, ListOptions};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use surrealdb::sql::{Object, Value};
+use surrealdb::sql::Object;
 
 use crate::{
     prelude::*,
@@ -13,9 +13,9 @@ use crate::{
 pub struct IdThing(pub String);
 
 /// Marker traits for types that can be used for query
-pub trait Creatable: Into<Value> {}
-pub trait Patchable: Into<Value> {}
-pub trait Deletable: Into<Value> {}
+pub trait Creatable: TryInto<Object> {}
+pub trait Patchable: TryInto<Object> {}
+pub trait Deletable: TryInto<Object> {}
 
 #[async_trait]
 pub trait IRustiumDb: RustiumService {

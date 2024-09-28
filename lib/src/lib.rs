@@ -48,36 +48,16 @@ impl RustiumApp {
             .await
             .expect("Failed to attach to port");
 
+        println!("Building Provider");
+
         // initialize services
         let built_provider = provider.build_provider()?;
-
-        // init db service
-        let db = match built_provider.get_mut::<dyn IRustiumDb>() {
-            Some(db) => db,
-            None => {
-                return Err(RustiumError::ServiceNotFound(
-                    "The required databse service is missing".into(),
-                ))
-            }
-        };
-
-        let mut dbi = match db.write() {
-            Ok(db) => db,
-            Err(_) => return Err(RustiumError::PoisonedRef("DB Service is poisoned".into())),
-        };
-
-        dbi.as_rustium()
-            .expect("DB Service is poisoned")
-            .expect("DB Service is poisoned")
-            .init()
-            .await?;
-
         // init settings service
         let settings = match built_provider.get_mut::<dyn IRustiumSettings>() {
             Some(db) => db,
             None => {
                 return Err(RustiumError::ServiceNotFound(
-                    "The required databse service is missing".into(),
+                    "The required database service is missing".into(),
                 ))
             }
         };
@@ -95,6 +75,27 @@ impl RustiumApp {
             .as_rustium()
             .expect("Settings Service is poisoned")
             .expect("Settings Service is poisoned")
+            .init()
+            .await?;
+
+        // init db service
+        let db = match built_provider.get_mut::<dyn IRustiumDb>() {
+            Some(db) => db,
+            None => {
+                return Err(RustiumError::ServiceNotFound(
+                    "The required database service is missing".into(),
+                ))
+            }
+        };
+
+        let mut dbi = match db.write() {
+            Ok(db) => db,
+            Err(_) => return Err(RustiumError::PoisonedRef("DB Service is poisoned".into())),
+        };
+
+        dbi.as_rustium()
+            .expect("DB Service is poisoned")
+            .expect("DB Service is poisoned")
             .init()
             .await?;
 

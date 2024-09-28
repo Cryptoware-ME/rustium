@@ -3,6 +3,8 @@
 /backups
 .env.local
 .VSCodeCounter
-rustium-template.tar.gz
+rustium-example-image.tar.gz
+rustium-example-image.tar
 Secrets*.toml
 book
+mydata

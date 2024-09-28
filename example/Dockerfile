@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG RUST_VERSION=1.79.0
-ARG APP_NAME=rustium_template
+ARG APP_NAME=rustium_example
 
 FROM rust:${RUST_VERSION}-slim-bullseye AS build
 ARG APP_NAME
@@ -14,5 +14,6 @@ RUN cp ./target/release/$APP_NAME /bin/server
 
 FROM debian:bullseye-slim AS final
 COPY --from=build /bin/server /bin/
+COPY --from=build /bin/config /bin/
 EXPOSE 8080 8080
 CMD ["/bin/server"]

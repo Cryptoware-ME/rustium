@@ -1,0 +1,16 @@
+services:
+  # server:
+  #   image: rustium-example-image:latest
+  #   ports:
+  #     - 8080:8080
+  db:
+    image: surrealdb/surrealdb:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - /rustium_example_data:/rustium_example_data
+    command: 
+      - start
+      - --log=trace
+      - --user=root
+      - --pass=root

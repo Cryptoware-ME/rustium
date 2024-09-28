@@ -3,8 +3,10 @@ pub mod responses;
 pub mod storage;
 
 use rustium::{
+    authentication::hash_password,
     datastore::idb::{Creatable, Deletable, Patchable},
-    surrealdb::sql::Value,
+    prelude::*,
+    surrealdb::sql::Object,
 };
 use std::collections::BTreeMap;
 
@@ -37,7 +39,7 @@ impl From<User> for UserDTO {
 impl From<CreateUserRequestDTO> for CreateUserDTO {
     fn from(val: CreateUserRequestDTO) -> Self {
         let password_hash =
-            User::hash_password(val.password.clone()).expect("Should hash password while casting");
+            hash_password(val.password.clone()).expect("Should hash password while casting");
         CreateUserDTO {
             name: val.name,
             email: val.email,
@@ -50,7 +52,7 @@ impl From<CreateUserRequestDTO> for CreateUserDTO {
 impl From<UpdateUserRequestDTO> for UpdateUserDTO {
     fn from(val: UpdateUserRequestDTO) -> Self {
         let password_hash =
-            User::hash_password(val.password.clone()).expect("Should hash password while casting");
+            hash_password(val.password.clone()).expect("Should hash password while casting");
         UpdateUserDTO {
             name: val.name,
             email: val.email,
@@ -63,7 +65,7 @@ impl From<UpdateUserRequestDTO> for UpdateUserDTO {
 impl From<CreateAdminRequestDTO> for CreateUserDTO {
     fn from(val: CreateAdminRequestDTO) -> Self {
         let password_hash =
-            User::hash_password(val.password.clone()).expect("Should hash password while casting");
+            hash_password(val.password.clone()).expect("Should hash password while casting");
         CreateUserDTO {
             name: val.name,
             email: val.email,
@@ -76,7 +78,7 @@ impl From<CreateAdminRequestDTO> for CreateUserDTO {
 impl From<UpdateAdminRequestDTO> for UpdateUserDTO {
     fn from(val: UpdateAdminRequestDTO) -> Self {
         let password_hash =
-            User::hash_password(val.password.clone()).expect("Should hash password while casting");
+            hash_password(val.password.clone()).expect("Should hash password while casting");
         UpdateUserDTO {
             name: val.name,
             email: val.email,
@@ -86,7 +88,7 @@ impl From<UpdateAdminRequestDTO> for UpdateUserDTO {
     }
 }
 
-impl From<UserDTO> for Value {
+impl From<UserDTO> for Object {
     fn from(val: UserDTO) -> Self {
         BTreeMap::from([
             ("name", val.name.into()),
@@ -105,20 +107,22 @@ impl From<UserDTO> for Value {
     }
 }
 
-impl From<UpdateUserDTO> for Value {
-    fn from(val: UpdateUserDTO) -> Self {
-        BTreeMap::from([
+impl TryFrom<UpdateUserDTO> for Object {
+    type Error = RustiumError;
+    fn try_from(val: UpdateUserDTO) -> RustiumResult<Self> {
+        Ok(BTreeMap::from([
             ("name", val.name.into()),
             ("email".into(), val.email.into()),
             ("password".into(), val.password.into()),
         ])
-        .into()
+        .into())
     }
 }
 
-impl From<CreateUserDTO> for Value {
-    fn from(val: CreateUserDTO) -> Self {
-        BTreeMap::from([
+impl TryFrom<CreateUserDTO> for Object {
+    type Error = RustiumError;
+    fn try_from(val: CreateUserDTO) -> RustiumResult<Self> {
+        Ok(BTreeMap::from([
             ("name", val.name.into()),
             ("email".into(), val.email.into()),
             (
@@ -132,6 +136,6 @@ impl From<CreateUserDTO> for Value {
             ),
             ("password".into(), val.password.into()),
         ])
-        .into()
+        .into())
     }
 }

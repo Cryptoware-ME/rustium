@@ -1,31 +1,25 @@
 {
   "environment": "development",
-
   "server": {
-    "port": 8000
+    "port": 8080
   },
-
   "database": {
-    "uri": "",
-    "username": "",
-    "password": "",
-    "namespace": "",
-    "dbname": ""
+    "uri": "http://localhost:8000",
+    "username": "root",
+    "password": "root",
+    "namespace": "rustium_example_ns",
+    "dbname": "rustium_example_db"
   },
-
   "auth": {
     "secret": "secret"
   },
-
   "logger": {
     "level": "debug"
   },
-
   "api": {
     "name": "Rustium Example App",
     "version": 1
   },
-
   "redis": {
     "server": "",
     "port": "",
@@ -33,7 +27,6 @@
     "password": "",
     "dbidx": ""
   },
-
   "rabbit": {
     "server": "",
     "port": "",
