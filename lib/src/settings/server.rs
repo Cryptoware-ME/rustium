@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::fmt;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct ServerSettings {
     pub port: u16,
     pub secret: String,

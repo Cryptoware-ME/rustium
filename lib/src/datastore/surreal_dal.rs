@@ -1,7 +1,7 @@
 //! Data Access layer for SurrealDB
 
 use axum::async_trait;
-use di::injectable;
+use di::{injectable, Ref};
 use modql::{filter::FilterGroups, filter::ListOptions};
 use std::collections::BTreeMap;
 use surrealdb::{
@@ -18,26 +18,31 @@ use crate::{
         query_builder::surreal_query_builder,
     },
     prelude::*,
-    settings::database::DatabaseSettings,
+    service::RustiumService,
+    settings::RustiumSettings,
 };
 
-/// Store struct normalizing CRUD SurrealDB application calls
+// region: Structs
 #[injectable(IDbDal)]
 pub struct SurrealDAL {
+    settings: Ref<RustiumSettings>,
     db: Option<Surreal<Client>>,
 }
+// endregion: Structs
 
 impl Default for SurrealDAL {
     fn default() -> Self {
-        Self { db: Option::None }
+        Self {
+            db: Option::None,
+            settings: Ref::default(),
+        }
     }
 }
-
-// endregion: Structs
-
 // region: Implementation
-impl SurrealDAL {
-    pub async fn new(conf: DatabaseSettings) -> RustiumResult<Self> {
+#[async_trait]
+impl RustiumService for SurrealDAL {
+    async fn init(&mut self) -> RustiumResult<()> {
+        let conf = self.settings.database.clone();
         let connection = Surreal::new::<Ws>(&conf.uri).await?;
         connection
             .signin(Root {
@@ -49,9 +54,16 @@ impl SurrealDAL {
             .use_ns(&conf.namespace)
             .use_db(&conf.dbname)
             .await?;
-        Ok(SurrealDAL {
-            db: Some(connection),
-        })
+        self.db = Some(connection);
+        Ok(())
+    }
+
+    async fn run(&mut self) -> RustiumResult<()> {
+        Ok(())
+    }
+
+    fn as_rustium(&mut self) -> RustiumResult<Option<Box<&mut dyn RustiumService>>> {
+        Ok(Some(Box::new(self)))
     }
 }
 

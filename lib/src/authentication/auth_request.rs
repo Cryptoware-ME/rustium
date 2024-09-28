@@ -12,18 +12,18 @@ use crate::{
         auth_user::AuthUser,
         token::{decode_auth_token, TokenUser},
     },
-    context::AppContext,
     error::AuthenticateError,
     prelude::*,
+    settings::IRustiumSettings,
 };
 
 #[async_trait]
-impl FromRequestParts<Arc<AppContext>> for TokenUser {
+impl FromRequestParts<Arc<()>> for TokenUser {
     type Rejection = RustiumError;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &Arc<AppContext>,
+        state: &Arc<()>,
     ) -> Result<Self, Self::Rejection> {
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
@@ -38,7 +38,14 @@ impl FromRequestParts<Arc<AppContext>> for TokenUser {
                     RustiumError::NotFound("Authentication service was not initialized".into())
                 })?;
 
-        let token_data = decode_auth_token(bearer.token(), &state.settings.server.secret)
+        let Inject(settings) = parts
+            .extract::<Inject<dyn IRustiumSettings>>()
+            .await
+            .map_err(|_| RustiumError::NotFound("Settings service was not initialized".into()))?;
+
+		let server_settings: Box<dyn IRustiumSettings
+
+        let token_data = decode_auth_token(bearer.token(), settings.server.secret)
             .map_err(|_| AuthenticateError::InvalidToken)?;
 
         let user: Box<dyn AuthUser> = auth_service.get_claim_user(token_data.claims).await?;

@@ -1,15 +1,20 @@
 //! This is the main application Error type.
 
 use argon2::Error as ArgonError;
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
+use config::ConfigError;
 use di::ValidationError;
 use redis::RedisError;
 use serde_json::json;
-use std::convert::Infallible;
-use std::num::{ParseFloatError, ParseIntError};
-use std::string::FromUtf8Error;
+use std::{
+    convert::Infallible,
+    num::{ParseFloatError, ParseIntError},
+    string::FromUtf8Error,
+};
 use tokio::task::JoinError;
 
 // region: Enum
@@ -73,6 +78,12 @@ pub enum RustiumError {
     JWTError(jsonwebtoken::errors::Error),
     #[error("Service is not ready or not loaded")]
     ServiceInversionError(ValidationError),
+    #[error("Service is not found")]
+    ServiceNotFound(String),
+    #[error("Settings: Error loading")]
+    SettingsError(ConfigError),
+    #[error("Service(non mut) is poisoned")]
+    PoisonedRef(String),
     // #[error("...")]
     // CustomError(ErrorType),
 }
@@ -150,6 +161,12 @@ impl From<AuthenticateError> for RustiumError {
 impl From<ValidationError> for RustiumError {
     fn from(val: ValidationError) -> Self {
         RustiumError::ServiceInversionError(val)
+    }
+}
+
+impl From<ConfigError> for RustiumError {
+    fn from(val: ConfigError) -> Self {
+        RustiumError::SettingsError(val)
     }
 }
 // endregion: From Implementations

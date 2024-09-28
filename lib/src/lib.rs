@@ -1,5 +1,4 @@
 pub mod authentication;
-pub mod context;
 pub mod datastore;
 pub mod error;
 pub mod logging;
@@ -8,6 +7,15 @@ pub mod response;
 pub mod result;
 pub mod service;
 pub mod settings;
+
+/// rexporting packages
+pub use axum;
+use datastore::idb_dal::IDbDal;
+pub use di;
+pub use di_axum;
+pub use http;
+pub use tokio;
+pub use tower_http;
 
 use axum::Router;
 use di::ServiceCollection;
@@ -23,21 +31,47 @@ use tower_http::{
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 
-use crate::{context::AppContext, prelude::*};
+use crate::prelude::*;
 
 pub struct RustiumApp {}
 
 impl RustiumApp {
-    pub async fn launch(
-        context: AppContext,
-        provider: ServiceCollection,
-        app: Router<AppContext>,
-    ) -> RustiumResult<()> {
+    pub async fn launch(provider: &mut ServiceCollection, app: Router<()>) -> RustiumResult<()> {
+        // grab listener and define socket
         let address = SocketAddr::from(([0, 0, 0, 0], 8080));
-
         let listener = TcpListener::bind(address)
             .await
             .expect("Failed to attach to port");
+
+        // initialize services
+        let built_provider = provider.build_provider()?;
+
+        // init db service
+        let db = match built_provider.get_mut::<dyn IDbDal>() {
+            Some(db) => db,
+            None => {
+                return Err(RustiumError::ServiceNotFound(
+                    "The required databse service is missing".into(),
+                ))
+            }
+        };
+
+        let mut dbi = match db.write() {
+            Ok(db) => db,
+            Err(_) => return Err(RustiumError::PoisonedRef("DB Service is poisoned".into())),
+        };
+
+        dbi.as_rustium().expect("").expect("").init().await?;
+
+        // // init settings service
+        // let db = match built_provider.get_mut::<dyn IDbDal>() {
+        //     Some(db) => db,
+        //     None => {
+        //         return Err(RustiumError::ServiceNotFound(
+        //             "The required databse service is missing".into(),
+        //         ))
+        //     }
+        // };
 
         // web app launch
         axum::serve(
@@ -56,8 +90,7 @@ impl RustiumApp {
                 "x-request-id",
             )))
             .layer(CorsLayer::permissive())
-            .with_state(context)
-            .with_provider(provider.build_provider()?)
+            .with_provider(built_provider)
             .into_make_service(),
         )
         .await

@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use surrealdb::sql::{Object, Value};
 
-use crate::{prelude::*, service::RustiumThreadSafe};
+use crate::{
+    prelude::*,
+    service::{RustiumService, RustiumThreadSafe},
+};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct IdThing(pub String);
@@ -15,7 +18,7 @@ pub trait Patchable: Into<Value> {}
 pub trait Deletable: Into<Value> {}
 
 #[async_trait]
-pub trait IDbDal {
+pub trait IDbDal: RustiumService {
     async fn exec_get(&self, tid: IdThing) -> RustiumResult<Object>;
     async fn exec_create(&self, tb: &str, data: Object) -> RustiumResult<IdThing>;
     async fn exec_merge(&self, tid: IdThing, data: Object) -> RustiumResult<IdThing>;
