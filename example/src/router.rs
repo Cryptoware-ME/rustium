@@ -1,7 +1,7 @@
-use rustium::axum::Router;
+use rustium::{prelude::*, RouterMap};
 
-use crate::users::handlers::create_routes as create_user_routes;
-
-pub fn create_routes() -> Router<()> {
-    Router::new().nest("/users", create_user_routes())
+pub fn routes_map() -> RouterMap {
+    map! [
+        "users" => crate::users::handlers::create_routes()
+    ]
 }

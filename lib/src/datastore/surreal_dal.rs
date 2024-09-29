@@ -14,9 +14,10 @@ use surrealdb::{
 use crate::{
     datastore::{
         idb::{IRustiumDb, IdThing},
-        object::{map, TakeX},
+        object::TakeX,
         query_builder::surreal_query_builder,
     },
+    map,
     prelude::*,
     service::RustiumService,
     settings::{IRustiumSettings, RustiumSettings},

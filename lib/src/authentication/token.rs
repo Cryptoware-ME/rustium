@@ -54,6 +54,13 @@ impl Claims {
     }
 }
 
+pub fn create<T: AuthUser>(user: T, secret: &str) -> TokenResult {
+    let encoding_key = EncodingKey::from_secret(secret.as_ref());
+    let claims = Claims::new(user);
+
+    Ok(jsonwebtoken::encode(&HEADER, &claims, &encoding_key)?)
+}
+
 pub fn encode_auth_token<T: AuthUser>(user: T, secret: &str) -> TokenResult {
     let encoding_key = EncodingKey::from_secret(secret.as_ref());
     let claims = Claims::new(user);

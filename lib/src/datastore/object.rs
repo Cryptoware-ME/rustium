@@ -11,18 +11,6 @@
 
 use crate::prelude::*;
 
-// region: Macros
-
-macro_rules! map {
-    ($($k:expr => $v:expr),* $(,)?) => {{
-		let mut m = ::std::collections::BTreeMap::new();
-        $(m.insert($k, $v);)+
-        m
-    }};
-  }
-pub(crate) use map;
-// endregion: Macros
-
 // region: Traits
 
 pub trait TakeXImpl<T> {

@@ -5,7 +5,7 @@ use rustium::{
     datastore::surreal_dal::SurrealDAL, di::*, settings::RustiumSettings, tokio, RustiumApp,
 };
 
-use crate::{router::create_routes, users::service::UserService};
+use crate::{router::routes_map, users::service::UserService};
 
 #[tokio::main]
 async fn main() {
@@ -15,9 +15,7 @@ async fn main() {
         .add(SurrealDAL::singleton().depends_on(exactly_one::<RustiumSettings>()))
         .add(UserService::singleton().depends_on(exactly_one::<SurrealDAL>()));
 
-    let app = create_routes();
-
-    RustiumApp::launch(provider, app)
+    RustiumApp::launch(provider, routes_map())
         .await
         .expect("App launch error")
 }

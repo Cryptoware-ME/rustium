@@ -8,3 +8,9 @@ pub struct UserDTO {
     pub email: String,
     pub user_type: UserType,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuthenticateResponse {
+    pub access_token: String,
+    pub user: UserDTO,
+}

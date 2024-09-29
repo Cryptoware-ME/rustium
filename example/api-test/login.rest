@@ -1,0 +1,7 @@
+POST http://localhost:8080/users/login HTTP/2.0
+Content-Type: application/json
+
+{
+	"email": "jad.jabbour@cryptoware.me",
+	"password": "112233"
+}

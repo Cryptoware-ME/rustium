@@ -1,3 +1,4 @@
+/// exporting modules
 pub mod authentication;
 pub mod datastore;
 pub mod error;
@@ -8,7 +9,7 @@ pub mod result;
 pub mod service;
 pub mod settings;
 
-/// re-exporting packages
+/// exporting packages
 pub use argon2;
 pub use axum;
 pub use di;
@@ -26,7 +27,7 @@ use axum::Router;
 use di::ServiceCollection;
 use di_axum::RouterServiceProviderExtensions;
 use http::header::{HeaderName, AUTHORIZATION};
-use std::net::SocketAddr;
+use std::{collections::BTreeMap, net::SocketAddr};
 use tokio::{net::TcpListener, sync::Notify};
 use tower_http::{
     compression::CompressionLayer,
@@ -38,10 +39,12 @@ use tower_http::{
 
 use crate::{datastore::idb::IRustiumDb, prelude::*, settings::IRustiumSettings};
 
+pub type RouterMap = BTreeMap<&'static str, Router<()>>;
+
 pub struct RustiumApp {}
 
 impl RustiumApp {
-    pub async fn launch(provider: ServiceCollection, app: Router<()>) -> RustiumResult<()> {
+    pub async fn launch(provider: ServiceCollection, routes: RouterMap) -> RustiumResult<()> {
         // grab listener and define socket
         let address = SocketAddr::from(([0, 0, 0, 0], 8080));
         let listener = TcpListener::bind(address)
@@ -107,6 +110,15 @@ impl RustiumApp {
             "warn" => tracing::Level::WARN,
             _ => tracing::Level::DEBUG,
         };
+
+        // merge routes
+        let mut app: Router<()> = Router::new();
+
+        for (k, v) in routes {
+            app = app.nest(&f!("/{}", k), v);
+        }
+
+        app = Router::new().nest(&f!("/{}", settings.get_api()?.version), app);
 
         // web app launch
         axum::serve(
