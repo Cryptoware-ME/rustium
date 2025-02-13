@@ -1,8 +1,4 @@
-POST http://localhost:8080/users HTTP/2.0
-Content-Type: application/json
+@userid=
 
-{
-	"name": "Jad",
-	"email": "jad.jabbour@cryptoware.me",
-	"password": "112233"
-}
+GET http://localhost:8080/v1/users/{{userid}} HTTP/2.0
+Content-Type: application/json

@@ -1,0 +1,1 @@
+GET http://localhost:8080/v1/users/health HTTP/2.0

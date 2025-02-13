@@ -8,13 +8,13 @@ use std::sync::Arc;
 
 use crate::{
     authentication::{
-        auth_service::IAuthService,
         auth_user::AuthUser,
+        service::IAuthService,
         token::{decode_auth_token, TokenUser},
     },
     error::AuthenticateError,
     prelude::*,
-    settings::{auth::AuthSettings, IRustiumSettings},
+    settings::{auth::AuthSettings, interface::IRustiumSettings},
 };
 
 #[async_trait]

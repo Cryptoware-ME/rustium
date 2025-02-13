@@ -1,6 +1,6 @@
 use rustium::{
     authentication::token, axum::Json, di_axum::Inject, error::AuthenticateError, prelude::*,
-    settings::IRustiumSettings,
+    settings::interface::IRustiumSettings,
 };
 
 use crate::users::{

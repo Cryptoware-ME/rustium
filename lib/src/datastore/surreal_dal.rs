@@ -1,5 +1,5 @@
 //! Data Access layer for SurrealDB
-
+use async_std::task;
 use axum::async_trait;
 use di::{injectable, Ref};
 use modql::filter::{FilterGroups, ListOptions};
@@ -7,39 +7,42 @@ use std::collections::BTreeMap;
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
     opt::auth::Root,
-    sql::{thing, Datetime, Object, Thing, Value},
+    sql::{Datetime, Object, Thing, Value},
     Surreal,
 };
 
 use crate::{
     datastore::{
         idb::{IRustiumDb, IdThing},
-        object::TakeX,
         query_builder::surreal_query_builder,
     },
     map,
     prelude::*,
     service::RustiumService,
-    settings::{IRustiumSettings, RustiumSettings},
+    settings::interface::IRustiumSettings,
 };
 
 // region: Structs
-#[injectable(IRustiumDb)]
 pub struct SurrealDAL {
-    settings: Ref<RustiumSettings>,
+    settings: Ref<dyn IRustiumSettings>,
     db: Option<Surreal<Client>>,
 }
+
 // endregion: Structs
 
-impl Default for SurrealDAL {
-    fn default() -> Self {
-        Self {
-            db: Option::None,
-            settings: Ref::default(),
-        }
+// region: Implementation
+#[injectable(IRustiumDb)]
+impl SurrealDAL {
+    fn new(inj_settings: Ref<dyn IRustiumSettings>) -> Self {
+        let mut this = Self {
+            settings: inj_settings,
+            db: None,
+        };
+        task::block_on(this.init()).expect("DB should be available & credentials should be valid");
+        this
     }
 }
-// region: Implementation
+
 #[async_trait]
 impl RustiumService for SurrealDAL {
     async fn init(&mut self) -> RustiumResult<()> {
@@ -59,11 +62,11 @@ impl RustiumService for SurrealDAL {
         Ok(())
     }
 
-    async fn run(&mut self) -> RustiumResult<()> {
+    async fn run(&self) -> RustiumResult<()> {
         Ok(())
     }
 
-    fn as_rustium(&mut self) -> RustiumResult<Option<Box<&mut dyn RustiumService>>> {
+    fn as_rustium(&self) -> RustiumResult<Option<Box<&dyn RustiumService>>> {
         Ok(Some(Box::new(self)))
     }
 }
@@ -73,7 +76,7 @@ impl IRustiumDb for SurrealDAL {
     async fn exec_get(&self, tid: IdThing) -> RustiumResult<Object> {
         let sql = "SELECT * FROM $th";
 
-        let vars: BTreeMap<String, Thing> = map!["th".into() => thing(&tid.0)?];
+        let vars: BTreeMap<String, Thing> = map!["th".into() => tid.0];
 
         match &self.db {
             Some(db) => match db.query(sql).bind(vars).await?.take(0)? {
@@ -86,14 +89,13 @@ impl IRustiumDb for SurrealDAL {
         }
     }
 
-    async fn exec_create(&self, tb: &str, data: Object) -> RustiumResult<IdThing> {
+    async fn exec_create(&self, tb: &str, mut data: Object) -> RustiumResult<IdThing> {
         let sql = "CREATE type::table($tb) CONTENT $data RETURN id";
-
-        let mut data: Object = Wrap(data.into()).try_into()?;
 
         match Datetime::default().timestamp_nanos_opt() {
             Some(now) => {
                 data.insert("created_at".into(), now.into());
+                data.insert("updated_at".into(), now.into());
             }
             None => {
                 return Err(RustiumError::CreateTableError(String::from(
@@ -108,16 +110,9 @@ impl IRustiumDb for SurrealDAL {
 
         match &self.db {
             Some(db) => {
-                let ress: Option<Object> = db.query(sql).bind(vars).await?.take(0)?;
+                let ress: Option<Thing> = db.query(sql).bind(vars).await?.take("id")?;
                 match ress {
-                    Some(mut object) => {
-                        let id = object.take_x_val("id").map_err(|ex| {
-                            RustiumError::StoreFailToCreate(f!(
-                                "exec_create failed for {tb} :: {ex}"
-                            ))
-                        })?;
-                        Ok(IdThing(id))
-                    }
+                    Some(id) => Ok(IdThing(id)),
                     None => Err(RustiumError::StoreFailToCreate(f!(
                         "exec_create {tb}, nothing returned."
                     ))),
@@ -129,27 +124,31 @@ impl IRustiumDb for SurrealDAL {
         }
     }
 
-    async fn exec_merge(&self, tid: IdThing, data: Object) -> RustiumResult<IdThing> {
+    async fn exec_merge(&self, tid: IdThing, mut data: Object) -> RustiumResult<IdThing> {
         let sql = "UPDATE $th MERGE $data RETURN id";
 
+        match Datetime::default().timestamp_nanos_opt() {
+            Some(now) => {
+                data.insert("updated_at".into(), now.into());
+            }
+            None => {
+                return Err(RustiumError::CreateTableError(String::from(
+                    "Error updating table record",
+                )));
+            }
+        };
+
         let vars: BTreeMap<String, Value> = map![
-			"th".into() => thing(&tid.0)?.into(),
-			"data".into() => data.into()];
+			"th".into() => tid.0.into(),
+			"data".into() => Value::from(data)];
 
         match &self.db {
             Some(db) => {
-                let ress: Option<Object> = db.query(sql).bind(vars).await?.take(0)?;
+                let ress: Option<Thing> = db.query(sql).bind(vars).await?.take("id")?;
                 match ress {
-                    Some(mut object) => {
-                        let id = object.take_x_val("id").map_err(|ex| {
-                            RustiumError::StoreFailToCreate(f!(
-                                "exec_merge failed for {tid} :: {ex}"
-                            ))
-                        })?;
-                        Ok(IdThing(id))
-                    }
+                    Some(id) => Ok(IdThing(id)),
                     None => Err(RustiumError::StoreFailToCreate(f!(
-                        "exec_merge {tid}, nothing returned."
+                        "exec_merge, nothing returned."
                     ))),
                 }
             }
@@ -162,15 +161,15 @@ impl IRustiumDb for SurrealDAL {
     async fn exec_delete(&self, tid: IdThing) -> RustiumResult<bool> {
         let sql = "DELETE $th";
 
-        let vars: BTreeMap<String, Thing> = map!["th".into() => thing(&tid.0)?];
+        let vars: BTreeMap<String, Thing> = map!["th".into() => tid.0];
 
         match &self.db {
             Some(db) => {
-                let ress: Option<Object> = db.query(sql).bind(vars).await?.take(0)?;
+                let ress: Option<Thing> = db.query(sql).bind(vars).await?.take("id")?;
                 match ress {
                     Some(_) => Ok(true),
                     None => Err(RustiumError::StoreFailToCreate(f!(
-                        "exec_delete {tid}, nothing returned."
+                        "exec_delete, nothing returned."
                     ))),
                 }
             }
@@ -190,7 +189,7 @@ impl IRustiumDb for SurrealDAL {
 
         let (sql, vars) = surreal_query_builder(tb, filter_or_groups, list_options)?;
 
-        let array: Vec<Value> = match &self.db {
+        let ress: Vec<Object> = match &self.db {
             Some(db) => match db.query(sql).bind(vars).await?.take(0)? {
                 Some(object) => object,
                 None => {
@@ -206,10 +205,7 @@ impl IRustiumDb for SurrealDAL {
             }
         };
 
-        array
-            .into_iter()
-            .map(|value| Wrap(value).try_into())
-            .collect()
+        Ok(ress)
     }
 }
 // endregion: Implementation

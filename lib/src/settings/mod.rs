@@ -7,9 +7,11 @@ pub mod rabbit;
 pub mod redis;
 pub mod server;
 
+use async_std::task;
 use axum::async_trait;
 use config::{Config, Environment, File};
 use di::injectable;
+use interface::IRustiumSettings;
 use serde::Deserialize;
 use std::env;
 
@@ -22,19 +24,7 @@ use crate::{
     RustiumResult,
 };
 
-pub trait IRustiumSettings: RustiumService {
-    fn get_environment(&self) -> RustiumResult<String>;
-    fn get_api(&self) -> RustiumResult<ApiSettings>;
-    fn get_server(&self) -> RustiumResult<ServerSettings>;
-    fn get_logger(&self) -> RustiumResult<LoggerSettings>;
-    fn get_database(&self) -> RustiumResult<DatabaseSettings>;
-    fn get_auth(&self) -> RustiumResult<AuthSettings>;
-    fn get_redis(&self) -> RustiumResult<RedisSettings>;
-    fn get_rabbit(&self) -> RustiumResult<RabbitSettings>;
-}
-
 #[derive(Debug, Clone, Deserialize, Default)]
-#[injectable(IRustiumSettings)]
 pub struct RustiumSettings {
     environment: String,
     api: ApiSettings,
@@ -44,6 +34,15 @@ pub struct RustiumSettings {
     auth: AuthSettings,
     redis: RedisSettings,
     rabbit: RabbitSettings,
+}
+
+#[injectable(IRustiumSettings)]
+impl RustiumSettings {
+    fn new() -> Self {
+        let mut this = Self::default();
+        task::block_on(this.init()).expect("Configuration files should be available and complete");
+        this
+    }
 }
 
 impl IRustiumSettings for RustiumSettings {
@@ -86,7 +85,7 @@ impl RustiumService for RustiumSettings {
         let run_mode = env::var("RUSTIUM_ENV").unwrap_or_else(|_| "development".into());
 
         let builder = Config::builder()
-            .add_source(File::with_name(&format!("config/{run_mode}")))
+            .add_source(File::with_name(&format!("config/{}.json", run_mode)))
             .add_source(Environment::default().separator("__"));
 
         let temp: Self = builder.build()?.try_deserialize()?;
@@ -103,11 +102,11 @@ impl RustiumService for RustiumSettings {
         Ok(())
     }
 
-    async fn run(&mut self) -> RustiumResult<()> {
+    async fn run(&self) -> RustiumResult<()> {
         Ok(())
     }
 
-    fn as_rustium(&mut self) -> RustiumResult<Option<Box<&mut dyn RustiumService>>> {
+    fn as_rustium(&self) -> RustiumResult<Option<Box<&dyn RustiumService>>> {
         Ok(Some(Box::new(self)))
     }
 }

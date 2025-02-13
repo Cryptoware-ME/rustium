@@ -19,12 +19,13 @@ pub use modql;
 pub use serde;
 pub use serde_derive;
 pub use serde_json;
+use settings::interface::IRustiumSettings;
 pub use surrealdb;
 pub use tokio;
 pub use tower_http;
 
 use axum::Router;
-use di::ServiceCollection;
+use di::ServiceProvider;
 use di_axum::RouterServiceProviderExtensions;
 use http::header::{HeaderName, AUTHORIZATION};
 use std::{collections::BTreeMap, net::SocketAddr};
@@ -34,73 +35,35 @@ use tower_http::{
     cors::CorsLayer,
     propagate_header::PropagateHeaderLayer,
     sensitive_headers::SetSensitiveHeadersLayer,
-    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
+    trace::{DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 
-use crate::{datastore::idb::IRustiumDb, prelude::*, settings::IRustiumSettings};
+use crate::prelude::*;
 
 pub type RouterMap = BTreeMap<&'static str, Router<()>>;
 
 pub struct RustiumApp {}
 
 impl RustiumApp {
-    pub async fn launch(provider: ServiceCollection, routes: RouterMap) -> RustiumResult<()> {
+    pub async fn launch(provider: ServiceProvider, routes: RouterMap) -> RustiumResult<()> {
         // grab listener and define socket
         let address = SocketAddr::from(([0, 0, 0, 0], 8080));
+
+        println!("Server listening on {}", &address);
+
         let listener = TcpListener::bind(address)
             .await
             .expect("Failed to attach to port");
 
-        println!("Building Provider");
-
-        // initialize services
-        let built_provider = provider.build_provider()?;
-        // init settings service
-        let settings = match built_provider.get_mut::<dyn IRustiumSettings>() {
-            Some(db) => db,
+        // get settings
+        let settings = match provider.get::<dyn IRustiumSettings>() {
+            Some(set) => set,
             None => {
                 return Err(RustiumError::ServiceNotFound(
-                    "The required database service is missing".into(),
+                    "The required settings service is missing".into(),
                 ))
             }
         };
-
-        let mut settings = match settings.write() {
-            Ok(setting) => setting,
-            Err(_) => {
-                return Err(RustiumError::PoisonedRef(
-                    "Settings Service is poisoned".into(),
-                ))
-            }
-        };
-
-        settings
-            .as_rustium()
-            .expect("Settings Service is poisoned")
-            .expect("Settings Service is poisoned")
-            .init()
-            .await?;
-
-        // init db service
-        let db = match built_provider.get_mut::<dyn IRustiumDb>() {
-            Some(db) => db,
-            None => {
-                return Err(RustiumError::ServiceNotFound(
-                    "The required database service is missing".into(),
-                ))
-            }
-        };
-
-        let mut dbi = match db.write() {
-            Ok(db) => db,
-            Err(_) => return Err(RustiumError::PoisonedRef("DB Service is poisoned".into())),
-        };
-
-        dbi.as_rustium()
-            .expect("DB Service is poisoned")
-            .expect("DB Service is poisoned")
-            .init()
-            .await?;
 
         let trace_level = match settings.get_logger()?.level.as_str() {
             "debug" => tracing::Level::DEBUG,
@@ -118,7 +81,7 @@ impl RustiumApp {
             app = app.nest(&f!("/{}", k), v);
         }
 
-        app = Router::new().nest(&f!("/{}", settings.get_api()?.version), app);
+        app = Router::new().nest(&f!("/v{}", settings.get_api()?.version), app);
 
         // web app launch
         axum::serve(
@@ -127,7 +90,8 @@ impl RustiumApp {
                 TraceLayer::new_for_http()
                     .make_span_with(DefaultMakeSpan::new().include_headers(true))
                     .on_request(DefaultOnRequest::new().level(trace_level))
-                    .on_response(DefaultOnResponse::new().level(trace_level)),
+                    .on_response(DefaultOnResponse::new().level(trace_level))
+                    .on_failure(DefaultOnFailure::new().level(trace_level)),
             )
             .layer(SetSensitiveHeadersLayer::new(std::iter::once(
                 AUTHORIZATION,
@@ -137,11 +101,11 @@ impl RustiumApp {
                 "x-request-id",
             )))
             .layer(CorsLayer::permissive())
-            .with_provider(built_provider)
+            .with_provider(provider)
             .into_make_service(),
         )
         .await
-        .expect("Failed to start server");
+        .expect("Server should launch");
 
         Notify::new().notified().await;
 

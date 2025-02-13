@@ -1,79 +1,106 @@
+use di::*;
 use rustium::{
+    axum::async_trait,
     datastore::{
-        idb::IdThing,
+        idb::{IRustiumDb, IdThing},
         repositories::base::{create, delete, get, list, update},
-        surreal_dal::SurrealDAL,
     },
     modql::filter::{ListOptions, OpValString, OpValsInt64, OpValsString},
     prelude::*,
+    service::RustiumService,
 };
-use std::sync::Arc;
 
 use crate::users::{dtos::storage::*, model::User};
 
-// region: Public Functions
-
-pub async fn get_user(dal: Arc<SurrealDAL>, id: &str) -> RustiumResult<User> {
-    get(dal, id).await
+#[async_trait]
+pub trait IUserRepository: RustiumService {
+    async fn get_user(&self, id: &str) -> RustiumResult<User>;
+    async fn get_user_by_name(&self, name: &str) -> RustiumResult<User>;
+    async fn get_user_by_email(&self, email: &str) -> RustiumResult<User>;
+    async fn create_user(&self, data: CreateUserDTO) -> RustiumResult<IdThing>;
+    async fn update_user(&self, id: &str, data: UpdateUserDTO) -> RustiumResult<IdThing>;
+    async fn delete_user(&self, id: &str) -> RustiumResult<bool>;
 }
 
-pub async fn get_user_by_name(dal: Arc<SurrealDAL>, name: &str) -> RustiumResult<User> {
-    match list::<User, SurrealDAL>(
-        dal,
-        "users",
-        Some(
-            UserFilter {
-                email: None::<OpValsString>,
-                id: None::<OpValsString>,
-                name: Some(OpValsString(vec![OpValString::Eq(name.into())])),
-                user_type: None::<OpValsInt64>,
-            }
-            .into(),
-        ),
-        ListOptions::default(),
-    )
-    .await
-    {
-        Ok(res) => Ok(res[0].clone()),
-        Err(_) => Err(RustiumError::not_found("users")),
+#[injectable(IUserRepository)]
+pub struct UserRepository {
+    db: Ref<dyn IRustiumDb>,
+}
+
+#[async_trait]
+impl IUserRepository for UserRepository {
+    async fn get_user(&self, id: &str) -> RustiumResult<User> {
+        get(self.db.clone(), id).await
+    }
+
+    async fn get_user_by_name(&self, name: &str) -> RustiumResult<User> {
+        match list::<User, _>(
+            self.db.clone(),
+            "users",
+            Some(
+                UserFilter {
+                    email: None::<OpValsString>,
+                    id: None::<OpValsString>,
+                    name: Some(OpValsString(vec![OpValString::Eq(name.into())])),
+                    user_type: None::<OpValsInt64>,
+                }
+                .into(),
+            ),
+            ListOptions::default(),
+        )
+        .await
+        {
+            Ok(res) => Ok(res[0].clone()),
+            Err(_) => Err(RustiumError::not_found("users")),
+        }
+    }
+
+    async fn get_user_by_email(&self, email: &str) -> RustiumResult<User> {
+        match list::<User, _>(
+            self.db.clone(),
+            "users",
+            Some(
+                UserFilter {
+                    email: Some(OpValsString(vec![OpValString::Eq(email.into())])),
+                    id: None::<OpValsString>,
+                    name: None::<OpValsString>,
+                    user_type: None::<OpValsInt64>,
+                }
+                .into(),
+            ),
+            ListOptions::default(),
+        )
+        .await
+        {
+            Ok(res) => Ok(res[0].clone()),
+            Err(_) => Err(RustiumError::not_found("users")),
+        }
+    }
+
+    async fn create_user(&self, data: CreateUserDTO) -> RustiumResult<IdThing> {
+        create(self.db.clone(), "users".into(), data).await
+    }
+
+    async fn update_user(&self, id: &str, data: UpdateUserDTO) -> RustiumResult<IdThing> {
+        update(self.db.clone(), id, data).await
+    }
+
+    async fn delete_user(&self, id: &str) -> RustiumResult<bool> {
+        delete(self.db.clone(), id).await
     }
 }
 
-pub async fn get_user_by_email(dal: Arc<SurrealDAL>, email: &str) -> RustiumResult<User> {
-    match list::<User, SurrealDAL>(
-        dal,
-        "users",
-        Some(
-            UserFilter {
-                email: Some(OpValsString(vec![OpValString::Eq(email.into())])),
-                id: None::<OpValsString>,
-                name: None::<OpValsString>,
-                user_type: None::<OpValsInt64>,
-            }
-            .into(),
-        ),
-        ListOptions::default(),
-    )
-    .await
-    {
-        Ok(res) => Ok(res[0].clone()),
-        Err(_) => Err(RustiumError::not_found("users")),
+#[async_trait]
+impl RustiumService for UserRepository {
+    async fn init(&mut self) -> RustiumResult<()> {
+        Ok(())
+    }
+
+    async fn run(&self) -> RustiumResult<()> {
+        Ok(())
+    }
+
+    fn as_rustium(&self) -> RustiumResult<Option<Box<&dyn RustiumService>>> {
+        Ok(Some(Box::new(self)))
     }
 }
-
-pub async fn create_user(dal: Arc<SurrealDAL>, data: CreateUserDTO) -> RustiumResult<IdThing> {
-    create(dal, "users".into(), data).await
-}
-
-pub async fn update_user(
-    dal: Arc<SurrealDAL>,
-    id: &str,
-    data: UpdateUserDTO,
-) -> RustiumResult<IdThing> {
-    update(dal, id, data).await
-}
-
-pub async fn delete_user(dal: Arc<SurrealDAL>, id: &str) -> RustiumResult<bool> {
-    delete(dal, id).await
-}
-// endregion: Public Functions

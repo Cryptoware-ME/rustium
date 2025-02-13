@@ -1,5 +1,11 @@
 ## cargo install cargo-make
 
+# example
+[tasks.run_example]
+workspace = false
+command = "cargo"
+args = ["run", "--package", "rustium_example"]
+
 # crate management
 [tasks.cpreadme]
 workspace = false
@@ -31,22 +37,6 @@ workspace = false
 cwd = "./lib"
 command = "cargo"
 args = ["publish"]
-
-# localdb
-[tasks.devdb-start]
-workspace = false
-script_runner = "@shell"
-script = '''
-docker run -d --name rustium-template-db -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=rustiumdb postgres
-'''
-
-[tasks.devdb-stop]
-workspace = false
-script_runner = "@shell"
-script = '''
-docker stop postgres
-docker rm postgres
-'''
 
 # documentation 
 [tasks.book-run]

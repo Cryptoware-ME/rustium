@@ -11,6 +11,7 @@ pub async fn create_user(
     Inject(user_service): Inject<dyn IUserService>,
     Json(body): Json<CreateUserRequestDTO>,
 ) -> RustiumResult<RustiumResponse<UserDTO>> {
+    println!("creating user");
     if user_service
         .check_exists(body.email.clone(), body.name.clone())
         .await
@@ -21,7 +22,7 @@ pub async fn create_user(
     }
 
     let user = user_service.create(body.into()).await?;
-    let res = UserDTO::from(user_service.get(user.0).await?);
+    let res = UserDTO::from(user_service.get(user.0.to_string()).await?.clone());
 
     let res = RustiumResponse::new()
         .data(res)

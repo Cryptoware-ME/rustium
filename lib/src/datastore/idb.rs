@@ -2,7 +2,7 @@ use axum::async_trait;
 use modql::filter::{FilterGroups, ListOptions};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use surrealdb::sql::Object;
+use surrealdb::sql::{Object, Thing};
 
 use crate::{
     prelude::*,
@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(Deserialize, Serialize, Clone)]
-pub struct IdThing(pub String);
+pub struct IdThing(pub Thing);
 
 /// Marker traits for types that can be used for query
 pub trait Creatable: TryInto<Object> {}

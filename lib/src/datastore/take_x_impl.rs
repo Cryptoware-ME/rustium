@@ -1,7 +1,7 @@
 //! TakeXImpl implementations for the surrealdb Object types.
 
 use std::time::Duration;
-use surrealdb::sql::{Object, Uuid};
+use surrealdb::sql::{Object, Thing, Uuid};
 
 use crate::{
     datastore::{idb::IdThing, object::TakeXImpl},
@@ -50,6 +50,17 @@ impl TakeXImpl<bool> for Object {
 
 impl TakeXImpl<Uuid> for Object {
     fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<Uuid>> {
+        let v = self.remove(k).map(|v| Wrap(v).try_into());
+        match v {
+            None => Ok(None),
+            Some(Ok(val)) => Ok(Some(val)),
+            Some(Err(e)) => Err(e),
+        }
+    }
+}
+
+impl TakeXImpl<Thing> for Object {
+    fn take_x_impl(&mut self, k: &str) -> RustiumResult<Option<Thing>> {
         let v = self.remove(k).map(|v| Wrap(v).try_into());
         match v {
             None => Ok(None),

@@ -5,7 +5,6 @@ use rustium::{
     datastore::{
         idb::IdThing,
         object::{TakeX, TakeXImpl},
-        surreal_dal::SurrealDAL,
     },
     prelude::*,
     result::RustiumResult,
@@ -16,9 +15,7 @@ use rustium::{
 use crate::users::{
     dtos::storage::{CreateUserDTO, UpdateUserDTO},
     model::{User, UserType},
-    repository::{
-        create_user, delete_user, get_user, get_user_by_email, get_user_by_name, update_user,
-    },
+    repository::IUserRepository,
 };
 
 /// conversion impls
@@ -97,17 +94,18 @@ pub trait IUserService: RustiumService {
     async fn update(&self, id: &str, data: UpdateUserDTO) -> RustiumResult<IdThing>;
     async fn delete(&self, id: &str) -> RustiumResult<bool>;
     async fn is_password_match(&self, user: User, password: &str) -> RustiumResult<bool>;
+    fn as_boxed(&mut self) -> RustiumResult<Option<Box<&mut UserService>>>;
 }
 
 /// user service interface
 #[injectable(IUserService)]
 pub struct UserService {
-    db: Ref<SurrealDAL>,
+    user_repository: Ref<dyn IUserRepository>,
 }
 
 #[async_trait]
 impl RustiumService for UserService {
-    fn as_rustium(&mut self) -> RustiumResult<Option<Box<&mut dyn RustiumService>>> {
+    fn as_rustium(&self) -> RustiumResult<Option<Box<&dyn RustiumService>>> {
         Ok(Some(Box::new(self)))
     }
 
@@ -115,27 +113,34 @@ impl RustiumService for UserService {
         Ok(())
     }
 
-    async fn run(&mut self) -> RustiumResult<()> {
+    async fn run(&self) -> RustiumResult<()> {
         Ok(())
     }
 }
 
 #[async_trait]
 impl IUserService for UserService {
+    fn as_boxed(&mut self) -> RustiumResult<Option<Box<&mut UserService>>> {
+        Ok(Some(Box::new(self)))
+    }
+
     async fn get(&self, user_id: String) -> RustiumResult<User> {
         let user_key = if user_id.starts_with("users:") {
-            user_id.clone()
+            user_id
         } else {
             format!("users:{}", user_id)
         };
 
-        get_user(self.db.clone(), &user_key).await
+        let user = self.user_repository.get_user(&user_key).await?;
+
+        Ok(user.clone())
     }
 
     async fn check_exists(&self, email: String, name: String) -> bool {
-        match get_user_by_email(self.db.clone(), &email).await {
+        println!("check user exists");
+        match self.user_repository.get_user_by_email(&email).await {
             Ok(_) => true,
-            Err(_) => match get_user_by_name(self.db.clone(), &name).await {
+            Err(_) => match self.user_repository.get_user_by_name(&name).await {
                 Ok(_) => true,
                 Err(_) => false,
             },
@@ -143,19 +148,19 @@ impl IUserService for UserService {
     }
 
     async fn get_by_email(&self, email: String) -> RustiumResult<User> {
-        get_user_by_email(self.db.clone(), &email).await
+        self.user_repository.get_user_by_email(&email).await
     }
 
     async fn create(&self, data: CreateUserDTO) -> RustiumResult<IdThing> {
-        create_user(self.db.clone(), data).await
+        self.user_repository.create_user(data).await
     }
 
     async fn update(&self, id: &str, data: UpdateUserDTO) -> RustiumResult<IdThing> {
-        update_user(self.db.clone(), id, data).await
+        self.user_repository.update_user(id, data).await
     }
 
     async fn delete(&self, id: &str) -> RustiumResult<bool> {
-        delete_user(self.db.clone(), id).await
+        self.user_repository.delete_user(id).await
     }
 
     async fn is_password_match(&self, user: User, password: &str) -> RustiumResult<bool> {

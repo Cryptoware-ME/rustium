@@ -1,7 +1,7 @@
 //! TryFrom implementations for wrapped store-related types
 
 use std::time::Duration;
-use surrealdb::sql::{Array, Object, Uuid, Value};
+use surrealdb::sql::{Array, Object, Thing, Uuid, Value};
 
 use crate::{datastore::idb::IdThing, prelude::*};
 
@@ -91,11 +91,21 @@ impl TryFrom<Wrap<Value>> for Uuid {
     }
 }
 
+impl TryFrom<Wrap<Value>> for Thing {
+    type Error = RustiumError;
+    fn try_from(val: Wrap<Value>) -> RustiumResult<Thing> {
+        match val.0 {
+            Value::Thing(id) => Ok(id),
+            _ => Err(Self::Error::PropertyNotFound(String::from("Thing"))),
+        }
+    }
+}
+
 impl TryFrom<Wrap<Value>> for IdThing {
     type Error = RustiumError;
     fn try_from(val: Wrap<Value>) -> RustiumResult<IdThing> {
         match val.0 {
-            Value::Thing(thing) => Ok(IdThing(thing.id.to_string())),
+            Value::Thing(thing) => Ok(IdThing(thing)),
             _ => Err(Self::Error::PropertyNotFound(String::from("IdThing"))),
         }
     }
