@@ -1,5 +1,4 @@
 //! Data Access layer for SurrealDB
-use async_std::task;
 use axum::async_trait;
 use di::{injectable, Ref};
 use modql::filter::{FilterGroups, ListOptions};
@@ -38,7 +37,11 @@ impl SurrealDAL {
             settings: inj_settings,
             db: None,
         };
-        task::block_on(this.init()).expect("DB should be available & credentials should be valid");
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current()
+                .block_on(this.init())
+        })
+        .expect("DB should be available & credentials should be valid");
         this
     }
 }

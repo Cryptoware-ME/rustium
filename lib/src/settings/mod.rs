@@ -7,7 +7,6 @@ pub mod rabbit;
 pub mod redis;
 pub mod server;
 
-use async_std::task;
 use axum::async_trait;
 use config::{Config, Environment, File};
 use di::injectable;
@@ -40,7 +39,11 @@ pub struct RustiumSettings {
 impl RustiumSettings {
     fn new() -> Self {
         let mut this = Self::default();
-        task::block_on(this.init()).expect("Configuration files should be available and complete");
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current()
+                .block_on(this.init())
+        })
+        .expect("Configuration files should be available and complete");
         this
     }
 }

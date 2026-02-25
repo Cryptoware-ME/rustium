@@ -22,9 +22,9 @@ use crate::{
 #[tokio::main]
 async fn main() {
     let provider = ServiceCollection::new()
-        // base dependencies
-        .add(RustiumSettings::scoped())
-        .add(SurrealDAL::scoped())
+        // base dependencies (singletons: shared across all requests)
+        .add(RustiumSettings::singleton())
+        .add(SurrealDAL::singleton())
         // User repository and service
         .add(UserRepository::scoped())
         .add(UserService::scoped())
